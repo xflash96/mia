@@ -2,6 +2,7 @@
  * modify from http://v4l2spec.bytesex.org/spec/a16706.htm
  *
  * */
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,10 +32,10 @@ class V4LCapture
 public:
 	V4LCapture(const char *dev_name) { 
 		this->dev_name = strdup(dev_name); 
-		width = 320, height = 240;
+		width = 1920, height = 1080;
 		n_buffers = 4;
 		fps = 30;
-		count = 0;
+		sequence = (__u32)0;
 		
 		fdata = fopen("data.h264", "wb");
 		assert(fdata);
@@ -65,7 +66,7 @@ public:
 	int width, height;
 	int fps;
 	int n_buffers;
-	int count;
+	__u32 sequence; /* v4l2_buffer.sequence */
 
 	// V4L2 internal
 	struct v4l2_capability cap;
@@ -315,11 +316,13 @@ void V4LCapture::read_frame()
 			errno_exit("VIDIOC_DQBUF");
 		}
 	}
+	if (this->sequence != 0)
+		assert(buf.sequence == this->sequence + 1);
+	this->sequence = buf.sequence;
 	
 	struct buffer* pbuf = &buffers[buf.index];
 
 	pbuf->bytesused = buf.bytesused;
-	pbuf->no = count++;
 
 #if 0
 	v4lconvert_yuyv_to_bgr24( 	(unsigned char*)pbuf->start, 
