@@ -16,6 +16,7 @@
 #include <sys/time.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
+#include <time.h>
 
 #include <linux/videodev2.h>
 //#include <libv4l2.h>
@@ -36,7 +37,9 @@ public:
 		count = 0;
 		
 		fdata = fopen("data.h264", "wb");
+		assert(fdata);
 		findx = fopen("data.offset", "w");
+		assert(findx);
 		offset = 0;
 
 		open_device();
@@ -361,36 +364,37 @@ void V4LCapture::close_device()
 	fd = -1;
 }
 
+int64_t timespec_to_ms(struct timespec *t)
+{
+	return t->tv_sec*1000 + t->tv_nsec/1000000;
+}
+
 int main()
 {
 	V4LCapture cap("/dev/video0");
 	fd_set fds;
-	struct timeval tv;
 	int r;
+	struct timespec t0, t1;
 
-	FD_ZERO(&fds);
+	r = clock_gettime(CLOCK_MONOTONIC, &t0);
+	assert(r == 0);
 
-	FD_SET(cap.fd, &fds);
-	tv.tv_sec = 2;
-	tv.tv_usec = 0;
-
-	for (int i=0; i<300; i++){
-		r = select(cap.fd+1, &fds, NULL, NULL, &tv);
+	for (int i=0; i<300; i++) {
+		FD_ZERO(&fds);
+		FD_SET(cap.fd, &fds);
+		r = select(cap.fd + 1, &fds, NULL, NULL, NULL);
 		if (r==-1) {
 			errno_exit("select overtime");
 		}
-		cap.read_frame();
-#if 0
-	char out_name[20];
-	sprintf(out_name, "out%d.ppm", pbuf->no);
-	write_ppm(out_name);
-#elif 0
-	cv::Mat mat = cv::Mat(&cap.frame, false);
-	cv::imshow("view", mat);
-	cvWaitKey(1);
-#endif
-		fputc('.', stderr);
+
+		if (FD_ISSET(cap.fd, &fds))
+			cap.read_frame();
 	}
 	
+	r = clock_gettime(CLOCK_MONOTONIC, &t1);
+	assert(r == 0);
+
+	printf("%lld\n", (long long)(timespec_to_ms(&t1) - timespec_to_ms(&t0)));
+
 	return 0;
 }

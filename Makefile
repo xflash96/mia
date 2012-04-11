@@ -1,6 +1,6 @@
 CFLAGS := -g -Wall -Wconversion -O3 $(shell pkg-config opencv --cflags)
 CXXFLAGS := $(CFLAGS)
-LDFLAGS := -lm -lv4l2 $(shell pkg-config opencv --libs)
+LDFLAGS := -lv4l2 $(shell pkg-config opencv --libs) -lrt -lm
 
 PROGRAMS := cap
 

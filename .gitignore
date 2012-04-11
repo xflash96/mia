@@ -2,3 +2,8 @@
 *.log
 *~
 *.o
+.gdbhistory
+data.h264
+data.offset
+cap
+tags
