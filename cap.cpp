@@ -32,19 +32,28 @@ public:
 		this->dev_name = strdup(dev_name); 
 		width = 320, height = 240;
 		n_buffers = 4;
-		fps = 120;
+		fps = 30;
 		count = 0;
 		
+		fdata = fopen("data.h264", "wb");
+		findx = fopen("data.offset", "w");
+		offset = 0;
+
 		open_device();
 		init_device();
 		start_capturing();
 	};
 	~V4LCapture() {
+		fclose(fdata);
+		fclose(findx);
 		stop_capturing();
 		uninit_device();
 		close_device(); 
 		free(dev_name);
 	};
+
+	FILE *fdata, *findx;
+	size_t offset;
 
 	char *dev_name;
 	int fd;
@@ -185,7 +194,7 @@ void V4LCapture::init_device()
 	fmt.type		= V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	fmt.fmt.pix.width	= width;
 	fmt.fmt.pix.height	= height;
-	fmt.fmt.pix.pixelformat	= V4L2_PIX_FMT_YUYV;
+	fmt.fmt.pix.pixelformat	= V4L2_PIX_FMT_H264;
 	fmt.fmt.pix.field	= V4L2_FIELD_INTERLACED;
 
 	if( -1 == xioctl(fd, VIDIOC_S_FMT, &fmt) ){
@@ -309,9 +318,15 @@ void V4LCapture::read_frame()
 	pbuf->bytesused = buf.bytesused;
 	pbuf->no = count++;
 
+#if 0
 	v4lconvert_yuyv_to_bgr24( 	(unsigned char*)pbuf->start, 
 					(unsigned char*)frame.imageData,
 				fmt.fmt.pix.width, fmt.fmt.pix.height);
+#endif
+	char *p = (char*)pbuf->start;
+	fwrite(p, pbuf->bytesused, 1, fdata);
+	fprintf(findx, "%lu\n", offset);
+	offset += pbuf->bytesused;
 
 	//process_image(buffers[buf.index].start);
 
@@ -359,7 +374,7 @@ int main()
 	tv.tv_sec = 2;
 	tv.tv_usec = 0;
 
-	for (int i=0; ; i++){
+	for (int i=0; i<300; i++){
 		r = select(cap.fd+1, &fds, NULL, NULL, &tv);
 		if (r==-1) {
 			errno_exit("select overtime");
@@ -369,12 +384,12 @@ int main()
 	char out_name[20];
 	sprintf(out_name, "out%d.ppm", pbuf->no);
 	write_ppm(out_name);
-#else
+#elif 0
 	cv::Mat mat = cv::Mat(&cap.frame, false);
 	cv::imshow("view", mat);
 	cvWaitKey(1);
 #endif
-		//fputc('.', stderr);
+		fputc('.', stderr);
 	}
 	
 	return 0;
