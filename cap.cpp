@@ -20,6 +20,9 @@
 #include <linux/videodev2.h>
 //#include <libv4l2.h>
 
+#include <opencv2/core/core_c.h>
+#include <opencv2/opencv.hpp>
+
 #define CLEAR(x) memset(&(x), 0, sizeof(x))
 
 class V4LCapture
@@ -45,7 +48,7 @@ public:
 	char *dev_name;
 	int fd;
 	struct buffer *buffers;
-	unsigned char *rgbbuf;
+	IplImage frame;
 	int width, height;
 	int n_buffers;
 	int count;
@@ -101,7 +104,7 @@ int xioctl(int fd, int request, void *arg)
 }
 // from libv4l
 #define CLIP(color) (unsigned char)(((color)>0xFF)?0xff:(((color)<0)?0:(color)))
-void v4lconvert_yuyv_to_rgb24(const unsigned char *src, unsigned char *dest,
+void v4lconvert_yuyv_to_bgr24(const unsigned char *src, unsigned char *dest,
   int width, int height)
 {
   int j;
@@ -115,13 +118,13 @@ void v4lconvert_yuyv_to_rgb24(const unsigned char *src, unsigned char *dest,
 		((v - 128) << 2) + ((v - 128) << 1)) >> 3;
       int v1 = (((v - 128) << 1) +  (v - 128)) >> 1;
 
-      *dest++ = CLIP(src[0] + v1);
-      *dest++ = CLIP(src[0] - rg);
       *dest++ = CLIP(src[0] + u1);
+      *dest++ = CLIP(src[0] - rg);
+      *dest++ = CLIP(src[0] + v1);
 
-      *dest++ = CLIP(src[2] + v1);
-      *dest++ = CLIP(src[2] - rg);
       *dest++ = CLIP(src[2] + u1);
+      *dest++ = CLIP(src[2] - rg);
+      *dest++ = CLIP(src[2] + v1);
       src += 4;
     }
   }
@@ -130,9 +133,7 @@ void V4LCapture::write_ppm(struct buffer *pbuf, const char *name)
 {
 	FILE *fp = fopen(name, "w");
 	fprintf(fp, "P6\n%d %d 255\n", fmt.fmt.pix.width, fmt.fmt.pix.height);
-	v4lconvert_yuyv_to_rgb24((unsigned char*)pbuf->start, rgbbuf,
-			fmt.fmt.pix.width, fmt.fmt.pix.height);
-	fwrite(rgbbuf, pbuf->bytesused/4*6, 1, fp);
+	fwrite(frame.imageData, pbuf->bytesused/4*6, 1, fp);
 	fclose(fp);
 }
 void process_image(void *p)
@@ -190,8 +191,12 @@ void V4LCapture::init_device()
 		errno_exit("VIDIOC_S_FMT");
 	}
 
-	rgbbuf = (unsigned char*)calloc(fmt.fmt.pix.sizeimage/4*6, 1);
-	if (NULL==rgbbuf){
+	cvInitImageHeader( &frame,
+			   cvSize( fmt.fmt.pix.width,
+				   fmt.fmt.pix.height ),
+			   IPL_DEPTH_8U, 3, IPL_ORIGIN_TL, 4 );
+	frame.imageData = (char*)cvAlloc(frame.imageSize);
+	if (NULL==frame.imageData){
 		errno_exit("calloc");
 	}
 
@@ -229,13 +234,12 @@ void V4LCapture::init_mmap()
 		}
 
 		buffers[i].length = buf.length;
-		buffers[i].start =
-			mmap(NULL,
-				buf.length,
-				PROT_READ | PROT_WRITE,
-				MAP_SHARED,
-				fd,
-				buf.m.offset);
+		buffers[i].start = mmap( NULL,
+					 buf.length,
+					 PROT_READ | PROT_WRITE,
+					 MAP_SHARED,
+					 fd,
+					 buf.m.offset );
 		if( MAP_FAILED == buffers[i].start ){
 			errno_exit("Fail to mmap %d-th buffer of %d",
 					i, n_buffers);
@@ -284,9 +288,19 @@ void V4LCapture::read_frame()
 	pbuf->bytesused = buf.bytesused;
 	pbuf->no = count++;
 
+	v4lconvert_yuyv_to_bgr24( 	(unsigned char*)pbuf->start, 
+					(unsigned char*)frame.imageData,
+				fmt.fmt.pix.width, fmt.fmt.pix.height);
+
+#if 0
 	char out_name[20];
 	sprintf(out_name, "out%d.ppm", pbuf->no);
 	write_ppm(pbuf, out_name);
+#else
+	cv::Mat mat = cv::Mat(&frame, true);
+	cv::imshow("view", mat);
+	cvWaitKey(100);
+#endif
 	//process_image(buffers[buf.index].start);
 
 	if( -1 == xioctl(fd, VIDIOC_QBUF, &buf) ){
@@ -310,7 +324,7 @@ void V4LCapture::uninit_device()
 		}
 	}
 	free(buffers);
-	free(rgbbuf);
+	cvFree(&frame.imageData);
 }
 void V4LCapture::close_device()
 {
