@@ -32,6 +32,7 @@ public:
 		this->dev_name = strdup(dev_name); 
 		width = 320, height = 240;
 		n_buffers = 4;
+		fps = 120;
 		count = 0;
 		
 		open_device();
@@ -50,6 +51,7 @@ public:
 	struct buffer *buffers;
 	IplImage frame;
 	int width, height;
+	int fps;
 	int n_buffers;
 	int count;
 
@@ -69,7 +71,7 @@ public:
 	void stop_capturing();
 	void init_mmap();
 
-	void write_ppm(struct buffer *pbuf, const char* name);
+	void write_ppm(const char* name);
 };
 
 struct buffer{
@@ -129,11 +131,11 @@ void v4lconvert_yuyv_to_bgr24(const unsigned char *src, unsigned char *dest,
     }
   }
 }
-void V4LCapture::write_ppm(struct buffer *pbuf, const char *name)
+void V4LCapture::write_ppm(const char *name)
 {
 	FILE *fp = fopen(name, "w");
 	fprintf(fp, "P6\n%d %d 255\n", fmt.fmt.pix.width, fmt.fmt.pix.height);
-	fwrite(frame.imageData, pbuf->bytesused/4*6, 1, fp);
+	fwrite(frame.imageData, frame.imageSize, 1, fp);
 	fclose(fp);
 }
 void process_image(void *p)
@@ -178,7 +180,6 @@ void V4LCapture::init_device()
 		}
 	}
 
-
 	CLEAR (fmt);
 	
 	fmt.type		= V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -199,6 +200,15 @@ void V4LCapture::init_device()
 	if (NULL==frame.imageData){
 		errno_exit("calloc");
 	}
+
+	struct v4l2_streamparm setfps;
+	
+	CLEAR (setfps);
+
+	setfps.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	setfps.parm.capture.timeperframe.numerator = 1;
+	setfps.parm.capture.timeperframe.denominator = fps;
+	xioctl (fd, VIDIOC_S_PARM, &setfps);
 
 	init_mmap();
 }
@@ -280,7 +290,18 @@ void V4LCapture::read_frame()
 	buf.memory = V4L2_MEMORY_MMAP;
 
 	if( -1 == xioctl(fd, VIDIOC_DQBUF, &buf) ){
-		errno_exit("VIDIOC_DQBUF");
+		if (EAGAIN == errno) {
+			return;
+			errno_exit("EAGAIN");
+		} else if (EINVAL == errno) {
+			errno_exit("EINVAL");
+		} else if (ENOMEM == errno) {
+			errno_exit("ENOMEM");
+		} else if (EIO == errno) {
+			errno_exit("EIO");
+		} else {
+			errno_exit("VIDIOC_DQBUF");
+		}
 	}
 	
 	struct buffer* pbuf = &buffers[buf.index];
@@ -292,15 +313,6 @@ void V4LCapture::read_frame()
 					(unsigned char*)frame.imageData,
 				fmt.fmt.pix.width, fmt.fmt.pix.height);
 
-#if 0
-	char out_name[20];
-	sprintf(out_name, "out%d.ppm", pbuf->no);
-	write_ppm(pbuf, out_name);
-#else
-	cv::Mat mat = cv::Mat(&frame, true);
-	cv::imshow("view", mat);
-	cvWaitKey(100);
-#endif
 	//process_image(buffers[buf.index].start);
 
 	if( -1 == xioctl(fd, VIDIOC_QBUF, &buf) ){
@@ -347,13 +359,22 @@ int main()
 	tv.tv_sec = 2;
 	tv.tv_usec = 0;
 
-	for (int i=0; i<20; i++){
+	for (int i=0; ; i++){
 		r = select(cap.fd+1, &fds, NULL, NULL, &tv);
 		if (r==-1) {
 			errno_exit("select overtime");
 		}
 		cap.read_frame();
-		fputc('.', stderr);
+#if 0
+	char out_name[20];
+	sprintf(out_name, "out%d.ppm", pbuf->no);
+	write_ppm(out_name);
+#else
+	cv::Mat mat = cv::Mat(&cap.frame, false);
+	cv::imshow("view", mat);
+	cvWaitKey(1);
+#endif
+		//fputc('.', stderr);
 	}
 	
 	return 0;
