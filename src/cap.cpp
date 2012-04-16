@@ -19,92 +19,13 @@
 #include <sys/ioctl.h>
 #include <time.h>
 
-#include <linux/videodev2.h>
-//#include <libv4l2.h>
-
 #include <opencv2/core/core_c.h>
-#include <opencv2/opencv.hpp>
+#include "cap.h"
 
 #define CLEAR(x) memset(&(x), 0, sizeof(x))
 
-class V4LCapture
-{
-public:
-	V4LCapture(const char *dev_name) { 
-		this->dev_name = strdup(dev_name); 
-		width = 1920, height = 1080;
-		n_buffers = 4;
-		fps = 30;
-		sequence = (__u32)0;
-		
-		fdata = fopen("data.h264", "wb");
-		assert(fdata);
-		findx = fopen("data.offset", "w");
-		assert(findx);
-		offset = 0;
 
-		open_device();
-		init_device();
-		start_capturing();
-	};
-	~V4LCapture() {
-		fclose(fdata);
-		fclose(findx);
-		stop_capturing();
-		uninit_device();
-		close_device(); 
-		free(dev_name);
-	};
-
-	FILE *fdata, *findx;
-	size_t offset;
-
-	char *dev_name;
-	int fd;
-	struct buffer *buffers;
-	IplImage frame;
-	int width, height;
-	int fps;
-	int n_buffers;
-	__u32 sequence; /* v4l2_buffer.sequence */
-
-	// V4L2 internal
-	struct v4l2_capability cap;
-	struct v4l2_cropcap cropcap;
-	struct v4l2_crop crop;
-	struct v4l2_format fmt;
-
-	void init_device();
-	void open_device();
-	void uninit_device();
-	void close_device();
-
-	void read_frame();
-	void start_capturing();
-	void stop_capturing();
-	void init_mmap();
-
-	void write_ppm(const char* name);
-};
-
-struct buffer{
-	void *	start;
-	size_t	length;
-
-	size_t bytesused;
-	int no;
-	struct v4l2_buffer buf;
-};
-
-void errno_exit(const char *tmpl, ...)
-{
-	va_list ap;
-	va_start(ap, tmpl);
-	vfprintf(stderr, tmpl, ap);
-	fprintf(stderr, "\terror %d, %s\n", errno, strerror(errno));
-	va_end(ap);
-	exit(EXIT_FAILURE);
-}
+extern void errno_exit(const char *tmpl, ...);
 
 int xioctl(int fd, int request, void *arg)
 {
@@ -156,6 +77,34 @@ void process_image(void *p)
 	fputc('.', stdout);
 	fflush(stdout);
 }
+
+V4LCapture::V4LCapture(const char *dev_name) { 
+	this->dev_name = strdup(dev_name); 
+	width = 1920, height = 1080;
+	n_buffers = 4;
+	fps = 30;
+	sequence = (__u32)0;
+	
+	fdata = fopen("data.h264", "wb");
+	assert(fdata);
+	findx = fopen("data.offset", "w");
+	assert(findx);
+	offset = 0;
+
+	open_device();
+	init_device();
+	start_capturing();
+};
+
+V4LCapture::~V4LCapture() {
+	fclose(fdata);
+	fclose(findx);
+	stop_capturing();
+	uninit_device();
+	close_device(); 
+	free(dev_name);
+};
+
 void V4LCapture::open_device()
 {
 	fd = open(dev_name, O_RDWR | O_NONBLOCK, 0);
@@ -371,7 +320,7 @@ int64_t timespec_to_ms(struct timespec *t)
 {
 	return t->tv_sec*1000 + t->tv_nsec/1000000;
 }
-
+#if 0
 int main()
 {
 	V4LCapture cap("/dev/video0");
@@ -401,3 +350,4 @@ int main()
 
 	return 0;
 }
+#endif
