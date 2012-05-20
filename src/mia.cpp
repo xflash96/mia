@@ -15,6 +15,13 @@ V4LCapture *STEREO_LEFT_CAM, *STEREO_RIGHT_CAM, *HD_CAM;
 GAsyncQueue *STEREO_MSG_Q, *HDVIDEO_MSG_Q, *UI_MSG_Q;
 int stereo_msg_pipe[2], hdvideo_msg_pipe[2], ui_msg_pipe[2];
 
+const char *LEFT_CAM_DEV;
+const char *RIGHT_CAM_DEV; 
+const char *HD_CAM_DEV;
+const char *LEFT_CAM_RECORD_PREFIX;
+const char *RIGHT_CAM_RECORD_PREFIX;
+const char *HD_CAM_RECORD_PREFIX;
+
 bool replay_mode = false;
 bool record_video = false;
 
@@ -50,7 +57,9 @@ stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 
 	/* Read frame */
 	V4LCapture *cap = (V4LCapture *)data;
-	cap->read_frame(NULL);
+	int ret = cap->read_frame(NULL);
+	if(ret == 0)
+		return FALSE;
 	if (cap == STEREO_LEFT_CAM) {
 	} else if (cap == STEREO_RIGHT_CAM) {
 	} else {
@@ -58,6 +67,12 @@ stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 	}
 
 	return TRUE;
+}
+
+static gboolean
+stereo_timeout(gpointer data)
+{
+	return stereo_onread(NULL, G_IO_IN, data);
 }
 
 static gboolean
@@ -78,13 +93,21 @@ stereo_init()
 		fps: 30,
 		pixelformat: V4L2_PIX_FMT_YUYV,
 		record_prefix: NULL,
+		replay_mode: (int)replay_mode,
 	};
-	STEREO_LEFT_CAM  = new V4LCapture("", p);
-	STEREO_RIGHT_CAM = new V4LCapture("", p);
+	p.record_prefix = LEFT_CAM_RECORD_PREFIX;
+	STEREO_LEFT_CAM  = new V4LCapture(LEFT_CAM_DEV, p);
+	p.record_prefix = RIGHT_CAM_RECORD_PREFIX;
+	STEREO_RIGHT_CAM = new V4LCapture(RIGHT_CAM_DEV, p);
 
 	main_loop_add_fd (stereo_msg_pipe[0],   stereo_onmsg, NULL);
-	main_loop_add_fd (STEREO_LEFT_CAM->fd,  stereo_onread, STEREO_LEFT_CAM);
-	main_loop_add_fd (STEREO_RIGHT_CAM->fd, stereo_onread, STEREO_RIGHT_CAM);
+	if(replay_mode){
+		g_timeout_add(1000/p.fps, stereo_timeout, STEREO_LEFT_CAM);
+		g_timeout_add(1000/p.fps, stereo_timeout, STEREO_RIGHT_CAM);
+	}else{
+		main_loop_add_fd (STEREO_LEFT_CAM->fd, stereo_onread, STEREO_LEFT_CAM);
+		main_loop_add_fd (STEREO_RIGHT_CAM->fd, stereo_onread, STEREO_RIGHT_CAM);
+	}
 }
 
 static void 
@@ -97,15 +120,23 @@ stereo_destroy()
 /* HD Video CallBacks
  *
  */
-static gboolean
+gboolean
 hdvideo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 {
 	assert (condition == G_IO_IN);
 
 	/* Read frame */
-	HD_CAM->read_frame(NULL);
+	int ret = HD_CAM->read_frame(NULL);
+	if(ret == 0)
+		return FALSE;
+
 
 	return TRUE;
+}
+static gboolean
+hdvideo_timeout(gpointer data)
+{
+	return hdvideo_onread(NULL, G_IO_IN, data);
 }
 
 static gboolean
@@ -125,12 +156,17 @@ hdvideo_init()
 		width: 1920, height: 1080,
 		fps: 30,
 		pixelformat: V4L2_PIX_FMT_H264,
-		record_prefix: NULL,
+		record_prefix: HD_CAM_RECORD_PREFIX,
+		replay_mode: (int)replay_mode,
 	};
-	HD_CAM = new V4LCapture("", p);
+	HD_CAM = new V4LCapture(HD_CAM_DEV, p);
 
 	main_loop_add_fd (hdvideo_msg_pipe[0],  hdvideo_onmsg, NULL);
-	main_loop_add_fd (HD_CAM->fd, 		hdvideo_onread, NULL);
+	if(replay_mode){
+		g_timeout_add (1000/p.fps, hdvideo_timeout, NULL);
+	}else{
+		main_loop_add_fd (HD_CAM->fd, hdvideo_onread, NULL);
+	}
 }
 
 static void
@@ -170,6 +206,14 @@ static void end_program(void)
 
 int main(int argc, char **argv)
 {
+	replay_mode = true;
+	LEFT_CAM_DEV  = "/dev/video1";
+	RIGHT_CAM_DEV = "/dev/video0";
+	HD_CAM_DEV = "/dev/video2";
+	LEFT_CAM_RECORD_PREFIX = "rec_left";
+	RIGHT_CAM_RECORD_PREFIX = "rec_right";
+	HD_CAM_RECORD_PREFIX = "rec_hd";
+
 	GMainLoop* main_loop = NULL;
 	main_loop = g_main_loop_new (NULL, FALSE);
 

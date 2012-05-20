@@ -49,30 +49,43 @@ V4LCapture::V4LCapture(const char *dev_name, struct V4LCaptureParam param)
 	this->dev_name = strdup(dev_name); 
 	this->param = param;
 
-	open_device();
-	init_device();
-	start_capturing();
-
 	if(param.record_prefix!=NULL){
+		const char *mode;
 		char name[100];
+		if(param.replay_mode)
+			mode = "r";
+		else
+			mode = "wb";
 		sprintf(name, "%s.vid", param.record_prefix);
-		video_rec = fopen(name, "wb");
+		video_rec = fopen(name, mode);
 		if(!video_rec){
 			errno_exit("cannot open file %s", name);
 		}
 
 		sprintf(name, "%s.time", param.record_prefix);
-		time_rec = fopen(name, "wb");
+		time_rec = fopen(name, mode);
 		if(!time_rec){
 			errno_exit("cannot open file %s", name);
 		}
+		buffers = NULL;
+		if(param.replay_mode)
+			return;
 	}
+
+	open_device();
+	init_device();
+	start_capturing();
 };
 
 V4LCapture::~V4LCapture() {
-	stop_capturing();
-	uninit_device();
-	close_device(); 
+	if(param.replay_mode) {
+		free(buffers->start);
+		free(buffers);
+	}else{
+		stop_capturing();
+		uninit_device();
+		close_device(); 
+	}
 	if(!video_rec){
 		fclose(video_rec);
 	}
@@ -211,19 +224,46 @@ void V4LCapture::start_capturing()
 	}
 }
 
-int64_t timespec_to_ms(struct timespec *t)
+void V4LCapture::dump_frame(void *data, struct v4l2_buffer *buf)
 {
-	return t->tv_sec*1000 + t->tv_nsec/1000000;
+	fwrite(data, buf->bytesused, 1, video_rec);
+	fwrite(buf, sizeof(*buf), 1, time_rec);
+	fprintf(stderr, "dump %s %d\n", dev_name, buf->sequence);
 }
 
-int64_t timeval_to_ms(struct timeval *t)
+int V4LCapture::load_frame(void **data, struct v4l2_buffer *buf)
 {
-	return t->tv_sec*1000 + t->tv_usec/1000;
+	int ret;
+	ret = fread(buf, sizeof(*buf), 1, time_rec);
+	if(ret == 0){
+		return 0;
+	}
+	if(*data == NULL){
+		*data = malloc(buf->length);
+		if(!*data){
+			errno_exit("calloc error");
+		}
+	}
+	ret = fread(*data, buf->bytesused, 1, video_rec);
+	fprintf(stderr, "load %s %d %d %d bytes\n", dev_name, buf->sequence, buf->bytesused, buf->length);
+	return ret;
 }
 
-void V4LCapture::read_frame(int (*onread)(uint8_t *data, struct v4l2_buffer buf))
+int V4LCapture::read_frame(int (*onread)(uint8_t *data, struct v4l2_buffer *buf))
 {
 	struct v4l2_buffer buf;
+	if (param.replay_mode) {
+		if(buffers==NULL){
+			buffers = (struct buffer*) calloc(1, sizeof(*buffers));
+			buffers->start = NULL;
+		}
+		int ret = load_frame(&(buffers->start), &buf);
+		if(ret != 0 && onread!=NULL){
+			fprintf(stderr, "before onread");
+			onread((uint8_t *)buffers->start, &buf);
+		}
+		return ret;
+	}
 
 	CLEAR( buf );
 
@@ -232,7 +272,7 @@ void V4LCapture::read_frame(int (*onread)(uint8_t *data, struct v4l2_buffer buf)
 
 	if( -1 == xioctl(fd, VIDIOC_DQBUF, &buf) ){
 		if (EAGAIN == errno) {
-			return;
+			return -1;
 			errno_exit("EAGAIN");
 		} else if (EINVAL == errno) {
 			errno_exit("EINVAL");
@@ -244,24 +284,28 @@ void V4LCapture::read_frame(int (*onread)(uint8_t *data, struct v4l2_buffer buf)
 			errno_exit("VIDIOC_DQBUF");
 		}
 	}
+	/*
 	if (this->sequence != 0)
 		assert(buf.sequence == this->sequence + 1);
 	this->sequence = buf.sequence;
+	*/
 	
 	struct buffer *pbuf = &buffers[buf.index];
 
 	if (param.record_prefix != NULL) {
-		fwrite(pbuf->start, buf.bytesused, 1, video_rec);
-		fwrite(&buf, sizeof(buf), 1, time_rec);
+		dump_frame((uint8_t *)pbuf->start, &buf);
 	}
 
-	if (onread != NULL)
-		onread( (uint8_t *)pbuf->start, buf);
+	if (onread != NULL){
+		onread( (uint8_t *)pbuf->start, &buf);
+	}
 
 
 	if( -1 == xioctl(fd, VIDIOC_QBUF, &buf) ){
 		errno_exit("VIDIOC_QBUF");
 	}
+	
+	return buf.bytesused;
 }
 void V4LCapture::stop_capturing()
 {

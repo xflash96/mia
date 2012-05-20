@@ -7,7 +7,8 @@ struct V4LCaptureParam
 	int width, height;
 	int fps;
 	int pixelformat;
-	char *record_prefix;
+	const char *record_prefix;
+	int replay_mode;
 };
 
 class V4LCapture
@@ -28,6 +29,8 @@ public:
 		int length;
 	} *buffers;
 
+	int read_frame(int (*on_read)(uint8_t *data, struct v4l2_buffer *buf));
+
 	// V4L2 internal
 	struct v4l2_capability cap;
 	struct v4l2_cropcap cropcap;
@@ -39,12 +42,12 @@ public:
 	void uninit_device();
 	void close_device();
 
-	void read_frame(int (*on_read)(uint8_t *data, struct v4l2_buffer buf));
 	void start_capturing();
 	void stop_capturing();
 	void init_mmap();
 
-	void replay(struct timespec now, int (*on_read)(uint8_t *data, struct v4l2_buffer buf));
 	FILE *video_rec, *time_rec;
+	void dump_frame(void *data, struct v4l2_buffer *buf);
+	int load_frame(void **data, struct v4l2_buffer *buf);
 };
 
