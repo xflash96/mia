@@ -1,3 +1,4 @@
+#include <malloc.h>
 #include "decoder.h"
 
 int read_from_stream(void *opaque, uint8_t *buf, int buf_size)
@@ -29,7 +30,7 @@ FFStreamDecoder::FFStreamDecoder(const char *codec_name)
     AVIOContext *pb = NULL;
     AVCodec *codec = NULL;
 
-    uint8_t inbuf[INBUF_SIZE + FF_INPUT_BUFFER_PADDING_SIZE];
+    uint8_t *inbuf = (uint8_t *)malloc(INBUF_SIZE + FF_INPUT_BUFFER_PADDING_SIZE);
     memset(inbuf + INBUF_SIZE, 0, FF_INPUT_BUFFER_PADDING_SIZE);
 
     // set input callback
@@ -82,12 +83,13 @@ FFStreamDecoder::FFStreamDecoder(const char *codec_name)
 
 FFStreamDecoder::~FFStreamDecoder()
 {
+    free(inbuf);
     avcodec_close(ctx);
     av_free(ctx);
     av_free(frame);
 }
 
-int FFStreamDecoder::decode(uint8_t *buf, int length, int (*on_frame)(AVFrame *frame))
+void FFStreamDecoder::decode(uint8_t *buf, int length, int (*on_frame)(AVFrame *frame))
 {
     this->buf = buf;
     this->buf_offset = 0;
@@ -97,7 +99,7 @@ int FFStreamDecoder::decode(uint8_t *buf, int length, int (*on_frame)(AVFrame *f
         pkt.data = NULL;
         av_read_frame(ic, &pkt);
         if (pkt.size == 0)
-            return 0;
+            return;
 
         while (pkt.size > 0) {
             int got_frame = 0;
@@ -116,5 +118,5 @@ int FFStreamDecoder::decode(uint8_t *buf, int length, int (*on_frame)(AVFrame *f
             pkt.data += len;
         }
     }
-    return 0;
+    return;
 }

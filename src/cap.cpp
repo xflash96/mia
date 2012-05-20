@@ -39,14 +39,12 @@ int xioctl(int fd, int request, void *arg)
 	return r;
 }
 
-V4LCapture::V4LCapture
-(const char *dev_name, struct V4LCaptureParam param, int (*process_image)(uint8_t *data, struct v4l2_buffer buf))
+V4LCapture::V4LCapture(const char *dev_name, struct V4LCaptureParam param)
 {
 	n_buffers = 4;
 	sequence = (__u32)0;
 	this->dev_name = strdup(dev_name); 
 	this->param = param;
-	this->process_image = process_image;
 
 	open_device();
 	init_device();
@@ -188,7 +186,7 @@ void V4LCapture::start_capturing()
 		errno_exit("VIDIOC_STREAMON");
 	}
 }
-void V4LCapture::read_frame()
+void V4LCapture::read_frame(int (*onread)(uint8_t *data, struct v4l2_buffer buf))
 {
 	struct v4l2_buffer buf;
 
@@ -217,7 +215,8 @@ void V4LCapture::read_frame()
 	
 	struct buffer *pbuf = &buffers[buf.index];
 
-	process_image( (uint8_t *)pbuf->start, buf);
+	if (onread != NULL)
+		onread( (uint8_t *)pbuf->start, buf);
 
 	if( -1 == xioctl(fd, VIDIOC_QBUF, &buf) ){
 		errno_exit("VIDIOC_QBUF");

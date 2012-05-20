@@ -11,12 +11,11 @@ struct V4LCaptureParam
 class V4LCapture
 {
 public:
-	V4LCapture(const char *dev_name, struct V4LCaptureParam param, int (*process_image)(uint8_t *data, struct v4l2_buffer buf));
+	V4LCapture(const char *dev_name, struct V4LCaptureParam param);
 	~V4LCapture();
 
 	char *dev_name;
 	struct V4LCaptureParam param;
-	int (*process_image)(uint8_t *data, struct v4l2_buffer buf);
 
 	int fd;
 	int n_buffers;
@@ -38,7 +37,7 @@ public:
 	void uninit_device();
 	void close_device();
 
-	void read_frame();
+	void read_frame(int (*on_read)(uint8_t *data, struct v4l2_buffer buf));
 	void start_capturing();
 	void stop_capturing();
 	void init_mmap();

@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <glib.h>
 #include <gtk/gtk.h>
+
 #include "cap.h"
 
 V4LCapture *STEREO_LEFT_CAM, *STEREO_RIGHT_CAM, *HD_CAM;
@@ -46,7 +47,7 @@ stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 
 	/* Read frame */
 	V4LCapture *cap = (V4LCapture *)data;
-	cap->read_frame();
+	cap->read_frame(NULL);
 	if (cap == STEREO_LEFT_CAM) {
 	} else if (cap == STEREO_RIGHT_CAM) {
 	} else {
@@ -69,8 +70,13 @@ stereo_init()
 	if (0 > pipe(stereo_msg_pipe)) {
 		errno_exit("PIPE");
 	}
-	STEREO_LEFT_CAM  = new V4LCapture("");
-	STEREO_RIGHT_CAM = new V4LCapture("");
+	V4LCaptureParam p = {
+		width: 640, height: 480,
+		fps: 30,
+		pixelformat: V4L2_PIX_FMT_YUV420 
+	};
+	STEREO_LEFT_CAM  = new V4LCapture("", p);
+	STEREO_RIGHT_CAM = new V4LCapture("", p);
 
 	main_loop_add_fd (stereo_msg_pipe[0],   stereo_onmsg, NULL);
 	main_loop_add_fd (STEREO_LEFT_CAM->fd,  stereo_onread, STEREO_LEFT_CAM);
@@ -93,7 +99,7 @@ hdvideo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 	assert (condition == G_IO_IN);
 
 	/* Read frame */
-	HD_CAM->read_frame();
+	HD_CAM->read_frame(NULL);
 
 	return TRUE;
 }
@@ -111,7 +117,12 @@ hdvideo_init()
 	if (0 > pipe(hdvideo_msg_pipe)) {
 		errno_exit("PIPE");
 	}
-	HD_CAM = new V4LCapture("");
+	V4LCaptureParam p = {
+		width: 1920, height: 1080,
+		fps: 30,
+		pixelformat: V4L2_PIX_FMT_H264,
+	};
+	HD_CAM = new V4LCapture("", p);
 
 	main_loop_add_fd (hdvideo_msg_pipe[0],  hdvideo_onmsg, NULL);
 	main_loop_add_fd (HD_CAM->fd, 		hdvideo_onread, NULL);
