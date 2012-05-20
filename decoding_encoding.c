@@ -106,9 +106,19 @@ static void pgm_save(unsigned char **src, int wrap, int width, int height,
     fclose(f);
 }
 
+static int read_from_stream(void *opaque, uint8_t *buf, int buf_size)
+{
+    FILE *f = (FILE*)opaque;
+    int n = fread(buf, 1, buf_size, f);
+    return n;
+}
+
+
 static void video_decode_example(const char *outfilename, const char *filename)
 {
     AVFormatContext *ic = NULL;
+    AVInputFormat *iformat = NULL;
+    AVIOContext *pb = NULL;
     AVCodec *codec;
     AVCodecContext *ctx= NULL;
     int nframe, got_frame, len;
@@ -122,8 +132,19 @@ static void video_decode_example(const char *outfilename, const char *filename)
 
     memset(inbuf + INBUF_SIZE, 0, FF_INPUT_BUFFER_PADDING_SIZE);
 
+    f = fopen(filename, "rb");
+    if (!f) {
+        fprintf(stderr, "could not open %s\n", filename);
+        exit(1);
+    }
+
+    iformat = av_find_input_format("h264");
+    pb = avio_alloc_context(inbuf, INBUF_SIZE, 0, f, read_from_stream, NULL, NULL);
+    pb->seekable = 0;
+    pb->write_flag = 0;
     ic = avformat_alloc_context();
-    int ret = avformat_open_input(&ic, filename, NULL, NULL);
+    ic->pb = pb;
+    int ret = avformat_open_input(&ic, "", iformat, NULL);
     if (ret<0) {
         fprintf(stderr, "format error\n");
         exit(1);
@@ -165,12 +186,6 @@ static void video_decode_example(const char *outfilename, const char *filename)
     ic->streams[0]->discard = AVDISCARD_DEFAULT;
 
     /* the codec gives us the frame size, in samples */
-
-    f = fopen(filename, "rb");
-    if (!f) {
-        fprintf(stderr, "could not open %s\n", filename);
-        exit(1);
-    }
 
     nframe = 0;
     for(;;) {
@@ -240,7 +255,7 @@ int main(int argc, char **argv)
     avcodec_register_all();
     av_register_all();
 
-    av_log_set_level(AV_LOG_VERBOSE);
+    av_log_set_level(AV_LOG_DEBUG);
 
     //    audio_decode_example("/tmp/test.sw", filename);
     video_decode_example("test%d.pgm", "data.h264");
