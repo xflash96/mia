@@ -38,58 +38,15 @@ int xioctl(int fd, int request, void *arg)
 
 	return r;
 }
-// from libv4l
-#define CLIP(color) (unsigned char)(((color)>0xFF)?0xff:(((color)<0)?0:(color)))
-void v4lconvert_yuyv_to_bgr24(const unsigned char *src, unsigned char *dest,
-  int width, int height)
+
+V4LCapture::V4LCapture
+(const char *dev_name, struct V4LCaptureParam param, int (*process_image)(uint8_t *data, struct v4l2_buffer buf))
 {
-  int j;
-
-  while (--height >= 0) {
-    for (j = 0; j < width; j += 2) {
-      int u = src[1];
-      int v = src[3];
-      int u1 = (((u - 128) << 7) +  (u - 128)) >> 6;
-      int rg = (((u - 128) << 1) +  (u - 128) +
-		((v - 128) << 2) + ((v - 128) << 1)) >> 3;
-      int v1 = (((v - 128) << 1) +  (v - 128)) >> 1;
-
-      *dest++ = CLIP(src[0] + u1);
-      *dest++ = CLIP(src[0] - rg);
-      *dest++ = CLIP(src[0] + v1);
-
-      *dest++ = CLIP(src[2] + u1);
-      *dest++ = CLIP(src[2] - rg);
-      *dest++ = CLIP(src[2] + v1);
-      src += 4;
-    }
-  }
-}
-void V4LCapture::write_ppm(const char *name)
-{
-	FILE *fp = fopen(name, "w");
-	fprintf(fp, "P6\n%d %d 255\n", fmt.fmt.pix.width, fmt.fmt.pix.height);
-	fwrite(frame.imageData, frame.imageSize, 1, fp);
-	fclose(fp);
-}
-void process_image(void *p)
-{
-	fputc('.', stdout);
-	fflush(stdout);
-}
-
-V4LCapture::V4LCapture(const char *dev_name) { 
-	this->dev_name = strdup(dev_name); 
-	width = 1920, height = 1080;
 	n_buffers = 4;
-	fps = 30;
 	sequence = (__u32)0;
-	
-	fdata = fopen("data.h264", "wb");
-	assert(fdata);
-	findx = fopen("data.offset", "w");
-	assert(findx);
-	offset = 0;
+	this->dev_name = strdup(dev_name); 
+	this->param = param;
+	this->process_image = process_image;
 
 	open_device();
 	init_device();
@@ -97,8 +54,6 @@ V4LCapture::V4LCapture(const char *dev_name) {
 };
 
 V4LCapture::~V4LCapture() {
-	fclose(fdata);
-	fclose(findx);
 	stop_capturing();
 	uninit_device();
 	close_device(); 
@@ -145,22 +100,13 @@ void V4LCapture::init_device()
 	CLEAR (fmt);
 	
 	fmt.type		= V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	fmt.fmt.pix.width	= width;
-	fmt.fmt.pix.height	= height;
-	fmt.fmt.pix.pixelformat	= V4L2_PIX_FMT_H264;
+	fmt.fmt.pix.width	= param.width;
+	fmt.fmt.pix.height	= param.height;
+	fmt.fmt.pix.pixelformat	= param.pixelformat;//V4L2_PIX_FMT_H264;
 	fmt.fmt.pix.field	= V4L2_FIELD_INTERLACED;
 
 	if( -1 == xioctl(fd, VIDIOC_S_FMT, &fmt) ){
 		errno_exit("VIDIOC_S_FMT");
-	}
-
-	cvInitImageHeader( &frame,
-			   cvSize( fmt.fmt.pix.width,
-				   fmt.fmt.pix.height ),
-			   IPL_DEPTH_8U, 3, IPL_ORIGIN_TL, 4 );
-	frame.imageData = (char*)cvAlloc(frame.imageSize);
-	if (NULL==frame.imageData){
-		errno_exit("calloc");
 	}
 
 	struct v4l2_streamparm setfps;
@@ -169,7 +115,7 @@ void V4LCapture::init_device()
 
 	setfps.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	setfps.parm.capture.timeperframe.numerator = 1;
-	setfps.parm.capture.timeperframe.denominator = fps;
+	setfps.parm.capture.timeperframe.denominator = param.fps;
 	xioctl (fd, VIDIOC_S_PARM, &setfps);
 
 	init_mmap();
@@ -269,21 +215,9 @@ void V4LCapture::read_frame()
 		assert(buf.sequence == this->sequence + 1);
 	this->sequence = buf.sequence;
 	
-	struct buffer* pbuf = &buffers[buf.index];
+	struct buffer *pbuf = &buffers[buf.index];
 
-	pbuf->bytesused = buf.bytesused;
-
-#if 0
-	v4lconvert_yuyv_to_bgr24( 	(unsigned char*)pbuf->start, 
-					(unsigned char*)frame.imageData,
-				fmt.fmt.pix.width, fmt.fmt.pix.height);
-#endif
-	char *p = (char*)pbuf->start;
-	fwrite(p, pbuf->bytesused, 1, fdata);
-	fprintf(findx, "%lu\n", offset);
-	offset += pbuf->bytesused;
-
-	//process_image(buffers[buf.index].start);
+	process_image( (uint8_t *)pbuf->start, buf);
 
 	if( -1 == xioctl(fd, VIDIOC_QBUF, &buf) ){
 		errno_exit("VIDIOC_QBUF");
@@ -306,8 +240,8 @@ void V4LCapture::uninit_device()
 		}
 	}
 	free(buffers);
-	cvFree(&frame.imageData);
 }
+
 void V4LCapture::close_device()
 {
 	if( -1 == close(fd) ){
@@ -315,39 +249,3 @@ void V4LCapture::close_device()
 	}
 	fd = -1;
 }
-
-int64_t timespec_to_ms(struct timespec *t)
-{
-	return t->tv_sec*1000 + t->tv_nsec/1000000;
-}
-#if 0
-int main()
-{
-	V4LCapture cap("/dev/video0");
-	fd_set fds;
-	int r;
-	struct timespec t0, t1;
-
-	r = clock_gettime(CLOCK_MONOTONIC, &t0);
-	assert(r == 0);
-
-	for (int i=0; i<300; i++) {
-		FD_ZERO(&fds);
-		FD_SET(cap.fd, &fds);
-		r = select(cap.fd + 1, &fds, NULL, NULL, NULL);
-		if (r==-1) {
-			errno_exit("select overtime");
-		}
-
-		if (FD_ISSET(cap.fd, &fds))
-			cap.read_frame();
-	}
-	
-	r = clock_gettime(CLOCK_MONOTONIC, &t1);
-	assert(r == 0);
-
-	printf("%lld\n", (long long)(timespec_to_ms(&t1) - timespec_to_ms(&t0)));
-
-	return 0;
-}
-#endif

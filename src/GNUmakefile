@@ -23,15 +23,18 @@ LDFLAGS := -lv4l2 \
 	$(FFMPEG_LDFLAGS) \
 	-lrt -lm
 
-CXXFLAGS := $(CFLAGS)
+CXXFLAGS := $(CFLAGS) -D__STDC_CONSTANT_MACROS
 CXX := g++
 
 PROGRAMS := mia
 
-mia: mia.o cap.o
+mia: mia.o cap.o decoder.o
 	$(CXX) $^ -o $@ $(LDFLAGS)
 
-.PHONY: all clean
+.PHONY: all clean install
 all: $(PROGRAMS)
 clean:
 	rm -f $(PROGRAMS) core.* *.o
+
+install:
+	./${PROGRAMS}
