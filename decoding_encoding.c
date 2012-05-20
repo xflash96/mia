@@ -43,7 +43,7 @@
  */
 
 #define CLIP(color) (unsigned char)(((color)>0xFF)?0xff:(((color)<0)?0:(color)))
-static void pgm_save(unsigned char *src, int wrap, int width, int height,
+static void pgm_save(unsigned char **src, int wrap, int width, int height,
                      char *filename)
 {
     FILE *f;
@@ -52,38 +52,45 @@ static void pgm_save(unsigned char *src, int wrap, int width, int height,
     fprintf(stderr, "wrap = %d\n", wrap);
     f=fopen(filename,"w");
     fprintf(f,"P6\n%d %d %d\n",width,height,255);
+    
+#if 0
+    fwrite(src, height+height/2, width, f);
+    fclose(f);
+    return;
+#endif
 
-  const unsigned char *ysrc = src;
+  unsigned char *ysrc = src[0];
   const unsigned char *usrc, *vsrc;
-  int yvu = 0;
   unsigned char dest_zero[10000], *dest;
 
-  if (yvu) {
-      vsrc = src + width * height;
-      usrc = vsrc + (width * height) / 4;
-  } else {
-      usrc = src + width * height;
-      vsrc = usrc + (width * height) / 4;
-  }
+  vsrc = src[2];// src + width * height;
+  usrc = src[1];//vsrc + (width * height) / 4;
 
   for (i = 0; i < height; i++) {
       dest = dest_zero;
       for (j = 0; j < width; j += 2) {
-#if 1 /* fast slightly less accurate multiplication free code */
           int u1 = (((*usrc - 128) << 7) +  (*usrc - 128)) >> 6;
           int rg = (((*usrc - 128) << 1) +  (*usrc - 128) +
                   ((*vsrc - 128) << 2) + ((*vsrc - 128) << 1)) >> 3;
           int v1 = (((*vsrc - 128) << 1) +  (*vsrc - 128)) >> 1;
 
+          if(*ysrc <16)
+              *ysrc = 16;
+          else if(*ysrc>235)
+              *ysrc = 235;
           *dest++ = CLIP(*ysrc + v1);
           *dest++ = CLIP(*ysrc - rg);
           *dest++ = CLIP(*ysrc + u1);
           ysrc++;
 
+          if(*ysrc <16)
+              *ysrc = 16;
+          else if(*ysrc>235)
+              *ysrc = 235;
           *dest++ = CLIP(*ysrc + v1);
           *dest++ = CLIP(*ysrc - rg);
           *dest++ = CLIP(*ysrc + u1);
-#endif
+
           ysrc++;
           usrc++;
           vsrc++;
@@ -101,52 +108,61 @@ static void pgm_save(unsigned char *src, int wrap, int width, int height,
 
 static void video_decode_example(const char *outfilename, const char *filename)
 {
+    AVFormatContext *ic = NULL;
     AVCodec *codec;
-    AVCodecContext *c= NULL;
+    AVCodecContext *ctx= NULL;
     int nframe, got_frame, len;
     FILE *f;
     AVFrame *frame;
     uint8_t inbuf[INBUF_SIZE + FF_INPUT_BUFFER_PADDING_SIZE];
     char buf[20];
-    AVPacket avpkt;
+    AVPacket pkt;
 
-    av_init_packet(&avpkt);
+    av_init_packet(&pkt);
 
     memset(inbuf + INBUF_SIZE, 0, FF_INPUT_BUFFER_PADDING_SIZE);
 
-    printf("Video decoding\n");
-
+    ic = avformat_alloc_context();
+    int ret = avformat_open_input(&ic, filename, NULL, NULL);
+    if (ret<0) {
+        fprintf(stderr, "format error\n");
+        exit(1);
+    }
+    
+    ctx = ic->streams[0]->codec;
     codec = avcodec_find_decoder(CODEC_ID_H264);
     if (!codec) {
         fprintf(stderr, "codec not found\n");
         exit(1);
     }
 
-    c = avcodec_alloc_context3(codec);
-    frame= avcodec_alloc_frame();
+    //ctx = avcodec_alloc_context3(codec);
+    frame = avcodec_alloc_frame();
 
-    /* For some codecs, such as msmpeg4 and mpeg4, width and height
-       MUST be initialized there because this information is not
-       available in the bitstream. */
-    c->workaround_bugs = 1;
-    c->lowres = 0;
-    c->idct_algo = FF_IDCT_AUTO;
-    c->skip_frame = AVDISCARD_DEFAULT;
-    c->skip_idct = AVDISCARD_DEFAULT;
-    c->skip_loop_filter = AVDISCARD_DEFAULT;
-    c->error_concealment = 3;
-    c->pix_fmt = PIX_FMT_YUVJ420P;
+    ctx->workaround_bugs = 1;
+    ctx->lowres = 0;
+    ctx->idct_algo = FF_IDCT_AUTO;
+    ctx->skip_frame = AVDISCARD_DEFAULT;
+    ctx->skip_idct = AVDISCARD_DEFAULT;
+    ctx->skip_loop_filter = AVDISCARD_DEFAULT;
+    ctx->error_concealment = 3;
+    ctx->pix_fmt = PIX_FMT_YUVJ420P;
 
-    c->flags = 16384;
-    c->request_sample_fmt = AV_SAMPLE_FMT_NONE;
-    c->delay = 2;
+    ctx->flags = CODEC_FLAG_EMU_EDGE | CODEC_FLAG_MV0;
+    ctx->request_sample_fmt = AV_SAMPLE_FMT_NONE;
+    /*
+    ctx->delay = 2;
+    ctx->width = 1920;
+    ctx->height = 1080;
+    */
 
-    if (avcodec_open2(c, codec, NULL) < 0) {
+    if (avcodec_open2(ctx, codec, NULL) < 0) {
         fprintf(stderr, "could not open codec\n");
         exit(1);
     }
     /* open it */
-    fprintf(stderr, "PIX_FMT = %d\n", c->pix_fmt);
+    fprintf(stderr, "PIX_FMT = %d\n", ctx->pix_fmt);
+    ic->streams[0]->discard = AVDISCARD_DEFAULT;
 
     /* the codec gives us the frame size, in samples */
 
@@ -158,30 +174,22 @@ static void video_decode_example(const char *outfilename, const char *filename)
 
     nframe = 0;
     for(;;) {
-        avpkt.size = fread(inbuf, 1, INBUF_SIZE, f);
-        fprintf(stderr, "size = %d\n", avpkt.size);
-        if (avpkt.size == 0)
+        av_init_packet(&pkt);
+        /*
+        pkt.size = fread(inbuf, 1, INBUF_SIZE, f);
+        pkt.data = inbuf;
+        fprintf(stderr, "size = %d\n", pkt.size);
+        */
+        pkt.data = NULL;
+        pkt.size = 0;
+        pkt.stream_index = 0;
+        av_read_frame(ic, &pkt);
+        if (pkt.size == 0)
             break;
 
-        /* NOTE1: some codecs are stream based (mpegvideo, mpegaudio)
-           and this is the only method to use them because you cannot
-           know the compressed data size before analysing it.
-
-           BUT some other codecs (msmpeg4, mpeg4) are inherently frame
-           based, so you must call them with all the data for one
-           frame exactly. You must also initialize 'width' and
-           'height' before initializing them. */
-
-        /* NOTE2: some codecs allow the raw parameters (frame size,
-           sample rate) to be changed at any frame. We handle this, so
-           you should also take care of it */
-
-        /* here, we use a stream based decoder (mpeg1video), so we
-           feed decoder and see if it could decode a frame */
-        avpkt.data = inbuf;
-        while (avpkt.size > 0) {
+        while (pkt.size > 0) {
             got_frame = 0;
-            len = avcodec_decode_video2(c, frame, &got_frame, &avpkt);
+            len = avcodec_decode_video2(ctx, frame, &got_frame, &pkt);
             if (len < 0) {
                 fprintf(stderr, "Error while decoding frame %d\n", nframe);
                 exit(1);
@@ -191,23 +199,21 @@ static void video_decode_example(const char *outfilename, const char *filename)
                 printf("saving frame %3d\n", nframe);
                 fflush(stdout);
 
-                /* the frame is allocated by the decoder. no need to
-                   free it */
                 snprintf(buf, sizeof(buf), outfilename, nframe);
-                pgm_save(frame->data[0], frame->linesize[0],
-                         c->width, c->height, buf);
+                pgm_save(frame->data, frame->linesize[0],
+                         ctx->width, ctx->height, buf);
                 nframe++;
             }
-            avpkt.size -= len;
-            avpkt.data += len;
+            pkt.size -= len;
+            pkt.data += len;
         }
     }
     /* some codecs, such as MPEG, transmit the I and P frame with a
        latency of one frame. You must do the following to have a
        chance to get the last frame of the video */
-    avpkt.data = NULL;
-    avpkt.size = 0;
-    len = avcodec_decode_video2(c, frame, &got_frame, &avpkt);
+    pkt.data = NULL;
+    pkt.size = 0;
+    len = avcodec_decode_video2(ctx, frame, &got_frame, &pkt);
     if (got_frame) {
         printf("saving last frame %3d\n", nframe);
         fflush(stdout);
@@ -215,14 +221,14 @@ static void video_decode_example(const char *outfilename, const char *filename)
         /* the frame is allocated by the decoder. no need to
            free it */
         snprintf(buf, sizeof(buf), outfilename, frame);
-        pgm_save(frame->data[0], frame->linesize[0],
-                 c->width, c->height, buf);
+        pgm_save(frame->data, frame->linesize[0],
+                 ctx->width, ctx->height, buf);
         frame++;
     }
     fclose(f);
 
-    avcodec_close(c);
-    av_free(c);
+    avcodec_close(ctx);
+    av_free(ctx);
     av_free(frame);
     printf("\n");
 }
@@ -237,7 +243,7 @@ int main(int argc, char **argv)
     av_log_set_level(AV_LOG_VERBOSE);
 
     //    audio_decode_example("/tmp/test.sw", filename);
-    video_decode_example("test%d.pgm", argv[1]);
+    video_decode_example("test%d.pgm", "data.h264");
 
     return 0;
 }
