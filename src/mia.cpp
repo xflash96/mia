@@ -15,12 +15,15 @@ V4LCapture *STEREO_LEFT_CAM, *STEREO_RIGHT_CAM, *HD_CAM;
 GAsyncQueue *STEREO_MSG_Q, *HDVIDEO_MSG_Q, *UI_MSG_Q;
 int stereo_msg_pipe[2], hdvideo_msg_pipe[2], ui_msg_pipe[2];
 
+bool replay_mode = false;
+bool record_video = false;
+
 void errno_exit(const char *tmpl, ...)
 {
 	va_list ap;
 	va_start(ap, tmpl);
 	vfprintf(stderr, tmpl, ap);
-	fprintf(stderr, "\terror %d, %s\n", errno, strerror(errno));
+	fprintf(stderr, "\n\terror %d: %s\n", errno, strerror(errno));
 	va_end(ap);
 	exit(EXIT_FAILURE);
 }
@@ -73,7 +76,8 @@ stereo_init()
 	V4LCaptureParam p = {
 		width: 640, height: 480,
 		fps: 30,
-		pixelformat: V4L2_PIX_FMT_YUV420 
+		pixelformat: V4L2_PIX_FMT_YUYV,
+		record_prefix: NULL,
 	};
 	STEREO_LEFT_CAM  = new V4LCapture("", p);
 	STEREO_RIGHT_CAM = new V4LCapture("", p);
@@ -121,6 +125,7 @@ hdvideo_init()
 		width: 1920, height: 1080,
 		fps: 30,
 		pixelformat: V4L2_PIX_FMT_H264,
+		record_prefix: NULL,
 	};
 	HD_CAM = new V4LCapture("", p);
 

@@ -1,11 +1,13 @@
 #include <linux/videodev2.h>
 #include <opencv2/opencv.hpp>
+#include <time.h>
 
 struct V4LCaptureParam
 {
 	int width, height;
 	int fps;
 	int pixelformat;
+	char *record_prefix;
 };
 
 class V4LCapture
@@ -41,5 +43,8 @@ public:
 	void start_capturing();
 	void stop_capturing();
 	void init_mmap();
+
+	void replay(struct timespec now, int (*on_read)(uint8_t *data, struct v4l2_buffer buf));
+	FILE *video_rec, *time_rec;
 };
 

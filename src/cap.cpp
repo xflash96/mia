@@ -19,7 +19,6 @@
 #include <sys/ioctl.h>
 #include <time.h>
 
-#include <opencv2/core/core_c.h>
 #include "cap.h"
 
 #define CLEAR(x) memset(&(x), 0, sizeof(x))
@@ -43,18 +42,43 @@ V4LCapture::V4LCapture(const char *dev_name, struct V4LCaptureParam param)
 {
 	n_buffers = 4;
 	sequence = (__u32)0;
+	if(0==strcmp(dev_name, "")){
+		this->dev_name = NULL;
+		return;
+	}
 	this->dev_name = strdup(dev_name); 
 	this->param = param;
 
 	open_device();
 	init_device();
 	start_capturing();
+
+	if(param.record_prefix!=NULL){
+		char name[100];
+		sprintf(name, "%s.vid", param.record_prefix);
+		video_rec = fopen(name, "wb");
+		if(!video_rec){
+			errno_exit("cannot open file %s", name);
+		}
+
+		sprintf(name, "%s.time", param.record_prefix);
+		time_rec = fopen(name, "wb");
+		if(!time_rec){
+			errno_exit("cannot open file %s", name);
+		}
+	}
 };
 
 V4LCapture::~V4LCapture() {
 	stop_capturing();
 	uninit_device();
 	close_device(); 
+	if(!video_rec){
+		fclose(video_rec);
+	}
+	if(!time_rec){
+		fclose(time_rec);
+	}
 	free(dev_name);
 };
 
@@ -186,6 +210,17 @@ void V4LCapture::start_capturing()
 		errno_exit("VIDIOC_STREAMON");
 	}
 }
+
+int64_t timespec_to_ms(struct timespec *t)
+{
+	return t->tv_sec*1000 + t->tv_nsec/1000000;
+}
+
+int64_t timeval_to_ms(struct timeval *t)
+{
+	return t->tv_sec*1000 + t->tv_usec/1000;
+}
+
 void V4LCapture::read_frame(int (*onread)(uint8_t *data, struct v4l2_buffer buf))
 {
 	struct v4l2_buffer buf;
@@ -215,8 +250,14 @@ void V4LCapture::read_frame(int (*onread)(uint8_t *data, struct v4l2_buffer buf)
 	
 	struct buffer *pbuf = &buffers[buf.index];
 
+	if (param.record_prefix != NULL) {
+		fwrite(pbuf->start, buf.bytesused, 1, video_rec);
+		fwrite(&buf, sizeof(buf), 1, time_rec);
+	}
+
 	if (onread != NULL)
 		onread( (uint8_t *)pbuf->start, buf);
+
 
 	if( -1 == xioctl(fd, VIDIOC_QBUF, &buf) ){
 		errno_exit("VIDIOC_QBUF");

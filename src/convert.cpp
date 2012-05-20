@@ -1,23 +1,20 @@
+#include <linux/videodev2.h>
+#include <opencv2/core/core_c.h>
 
+void yuyv_to_iplimage()
+{
+	IplImage frame;
 	cvInitImageHeader( &frame,
 			   cvSize( fmt.fmt.pix.width,
 				   fmt.fmt.pix.height ),
 			   IPL_DEPTH_8U, 3, IPL_ORIGIN_TL, 4 );
 	frame.imageData = (char*)cvAlloc(frame.imageSize);
 	cvFree(&frame.imageData);
-	if (NULL==frame.imageData){
-		errno_exit("calloc");
-	}
+}
 
-#if 0
-	v4lconvert_yuyv_to_bgr24( 	(unsigned char*)pbuf->start, 
-					(unsigned char*)frame.imageData,
-				fmt.fmt.pix.width, fmt.fmt.pix.height);
-	char *p = (char*)pbuf->start;
-	fwrite(p, pbuf->bytesused, 1, fdata);
-	fprintf(findx, "%lu\n", offset);
-	offset += pbuf->bytesused;
-#endif
+void yuv420_to_gtk_image()
+{
+}
 
 // from libv4l
 #define CLIP(color) (unsigned char)(((color)>0xFF)?0xff:(((color)<0)?0:(color)))
@@ -47,7 +44,48 @@ void v4lconvert_yuyv_to_bgr24(const unsigned char *src, unsigned char *dest,
   }
 }
 
-void V4LCapture::write_ppm(const char *name)
+int64_t timespec_to_ms(struct timespec *t)
+{
+	return t->tv_sec*1000 + t->tv_nsec/1000000;
+}
+
+static void v4lconvert_yuv420_to_bgr24(uint8_t *ysrc, uint8_t *usrc, uint8_t *vsrc, uint8_t *dst, int width, int height)
+{
+    int i, j;
+
+    unsigned char dest_zero[10000], *dest;
+
+    for (i = 0; i < height; i++) {
+        dest = dest_zero;
+        for (j = 0; j < width; j += 2) {
+            int u1 = (((*usrc - 128) << 7) +  (*usrc - 128)) >> 6;
+            int rg = (((*usrc - 128) << 1) +  (*usrc - 128) +
+                    ((*vsrc - 128) << 2) + ((*vsrc - 128) << 1)) >> 3;
+            int v1 = (((*vsrc - 128) << 1) +  (*vsrc - 128)) >> 1;
+
+            *dest++ = CLIP(*ysrc + v1);
+            *dest++ = CLIP(*ysrc - rg);
+            *dest++ = CLIP(*ysrc + u1);
+            ysrc++;
+
+            *dest++ = CLIP(*ysrc + v1);
+            *dest++ = CLIP(*ysrc - rg);
+            *dest++ = CLIP(*ysrc + u1);
+
+            ysrc++;
+            usrc++;
+            vsrc++;
+        }
+        /* Rewind u and v for next line */
+        if (!(i&1)) {
+            usrc -= width / 2;
+            vsrc -= width / 2;
+        }
+    }
+}
+
+#if 0
+void write_ppm(const char *name)
 {
 	FILE *fp = fopen(name, "w");
 	fprintf(fp, "P6\n%d %d 255\n", fmt.fmt.pix.width, fmt.fmt.pix.height);
@@ -55,7 +93,6 @@ void V4LCapture::write_ppm(const char *name)
 	fclose(fp);
 }
 
-#if 0
 int main()
 {
 	V4LCapture cap("/dev/video0");
@@ -86,58 +123,3 @@ int main()
 	return 0;
 }
 #endif
-int64_t timespec_to_ms(struct timespec *t)
-{
-	return t->tv_sec*1000 + t->tv_nsec/1000000;
-}
-
-
-#define CLIP(color) (unsigned char)(((color)>0xFF)?0xff:(((color)<0)?0:(color)))
-static void pgm_save(unsigned char **src, int wrap, int width, int height,
-                     char *filename)
-{
-    FILE *f;
-    int i, j;
-
-    fprintf(stderr, "wrap = %d\n", wrap);
-    f=fopen(filename,"w");
-    fprintf(f,"P6\n%d %d %d\n",width,height,255);
-    
-    unsigned char *ysrc = src[0];
-    const unsigned char *usrc, *vsrc;
-    unsigned char dest_zero[10000], *dest;
-
-    vsrc = src[2];
-    usrc = src[1];
-
-    for (i = 0; i < height; i++) {
-        dest = dest_zero;
-        for (j = 0; j < width; j += 2) {
-            int u1 = (((*usrc - 128) << 7) +  (*usrc - 128)) >> 6;
-            int rg = (((*usrc - 128) << 1) +  (*usrc - 128) +
-                    ((*vsrc - 128) << 2) + ((*vsrc - 128) << 1)) >> 3;
-            int v1 = (((*vsrc - 128) << 1) +  (*vsrc - 128)) >> 1;
-
-            *dest++ = CLIP(*ysrc + v1);
-            *dest++ = CLIP(*ysrc - rg);
-            *dest++ = CLIP(*ysrc + u1);
-            ysrc++;
-
-            *dest++ = CLIP(*ysrc + v1);
-            *dest++ = CLIP(*ysrc - rg);
-            *dest++ = CLIP(*ysrc + u1);
-
-            ysrc++;
-            usrc++;
-            vsrc++;
-        }
-        /* Rewind u and v for next line */
-        if (!(i&1)) {
-            usrc -= width / 2;
-            vsrc -= width / 2;
-        }
-        fwrite(dest_zero, dest-dest_zero, 1, f);
-    }
-
-    fclose(f);
-}
