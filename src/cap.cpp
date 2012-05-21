@@ -53,7 +53,7 @@ V4LCapture::V4LCapture(const char *dev_name, struct V4LCaptureParam param)
 		const char *mode;
 		char name[100];
 		if(param.replay_mode)
-			mode = "r";
+			mode = "rb";
 		else
 			mode = "wb";
 		sprintf(name, "%s.vid", param.record_prefix);
@@ -259,7 +259,6 @@ int V4LCapture::read_frame(int (*onread)(uint8_t *data, struct v4l2_buffer *buf)
 		}
 		int ret = load_frame(&(buffers->start), &buf);
 		if(ret != 0 && onread!=NULL){
-			fprintf(stderr, "before onread");
 			onread((uint8_t *)buffers->start, &buf);
 		}
 		return ret;

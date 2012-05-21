@@ -1,6 +1,8 @@
 #include <malloc.h>
+#include <assert.h>
 #include "decoder.h"
 
+extern "C" {
 int read_from_stream(void *opaque, uint8_t *buf, int buf_size)
 {
     FFStreamDecoder *d = (FFStreamDecoder *)opaque;
@@ -12,37 +14,46 @@ int read_from_stream(void *opaque, uint8_t *buf, int buf_size)
     else
         len = buf_size;
 
-    memcpy(buf, d->buf, len);
+    fprintf(stderr, "buf: length = %d, offset = %d ", d->buf_length, d->buf_offset);
+    fprintf(stderr, "req = %d, memcpy len = %d\n", buf_size, len);
+    memcpy(buf, d->buf+d->buf_offset, len);
     d->buf_offset += len;
 
     return len;
 }
+}
 
 FFStreamDecoder::FFStreamDecoder(const char *codec_name)
 {
-    avcodec_register_all();
-    av_register_all();
+    ic = NULL;
+    iformat = NULL;
+    options = NULL;
+    pb = NULL;
+    ctx = NULL;
+    buf = NULL;
+    buf_offset = 0;
+    buf_length = 0;
 
-    av_log_set_level(AV_LOG_DEBUG);
-
-    AVInputFormat *iformat = NULL;
-    AVDictionary *options = NULL;
-    AVIOContext *pb = NULL;
-    AVCodec *codec = NULL;
-
-    uint8_t *inbuf = (uint8_t *)malloc(INBUF_SIZE + FF_INPUT_BUFFER_PADDING_SIZE);
-    memset(inbuf + INBUF_SIZE, 0, FF_INPUT_BUFFER_PADDING_SIZE);
-
-    // set input callback
     iformat = av_find_input_format(codec_name);
+
+    inbuf = (uint8_t *)malloc(INBUF_SIZE + FF_INPUT_BUFFER_PADDING_SIZE);
+    assert(inbuf);
+    memset(inbuf + INBUF_SIZE, 0, FF_INPUT_BUFFER_PADDING_SIZE);
+}
+
+void FFStreamDecoder::setup(){
+    // set input callback
     pb = avio_alloc_context(inbuf, INBUF_SIZE, 0, this, read_from_stream, NULL, NULL);
     pb->seekable = 0;
     pb->write_flag = 0;
     ic = avformat_alloc_context();
     ic->pb = pb;
+    if (!av_dict_get(options, "threads", NULL, 0))
+        av_dict_set(&options, "threads", "auto", 0);
 
     // open stream
     int ret = avformat_open_input(&ic, "", iformat, &options);
+    fprintf(stderr, "****first****\n");
     if (ret<0) {
         fprintf(stderr, "format error\n");
         exit(1);
@@ -94,11 +105,19 @@ void FFStreamDecoder::decode(uint8_t *buf, int length, int (*on_frame)(AVFrame *
     this->buf = buf;
     this->buf_offset = 0;
     this->buf_length = length;
+    //fprintf(stderr, "length = %d\n", length);
+
+    if(!ctx){
+	    setup();
+    }
 
     while (this->buf_offset < length) {
+
+	//fprintf(stderr, "offset = %d\n", this->buf_offset);
         pkt.data = NULL;
+	pkt.size = 0;
         av_read_frame(ic, &pkt);
-        if (pkt.size == 0)
+        if (pkt.size==0)
             return;
 
         while (pkt.size > 0) {
@@ -111,6 +130,7 @@ void FFStreamDecoder::decode(uint8_t *buf, int length, int (*on_frame)(AVFrame *
             }
 
             if (got_frame) {
+		fprintf(stderr, "get frame\n");
                 on_frame(frame);
                 nframe++;
             }

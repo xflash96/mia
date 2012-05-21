@@ -9,8 +9,10 @@
 #include <gtk/gtk.h>
 
 #include "cap.h"
+#include "decoder.h"
 
 V4LCapture *STEREO_LEFT_CAM, *STEREO_RIGHT_CAM, *HD_CAM;
+FFStreamDecoder *HD_DECODER;
 
 GAsyncQueue *STEREO_MSG_Q, *HDVIDEO_MSG_Q, *UI_MSG_Q;
 int stereo_msg_pipe[2], hdvideo_msg_pipe[2], ui_msg_pipe[2];
@@ -120,13 +122,24 @@ stereo_destroy()
 /* HD Video CallBacks
  *
  */
+int
+hdvideo_on_frame(AVFrame *frame)
+{
+	return 0;
+}
+int
+hdvideo_decode(uint8_t *data, struct v4l2_buffer *buf)
+{
+	HD_DECODER->decode(data, buf->bytesused, hdvideo_on_frame);
+	return 0;
+}
 gboolean
 hdvideo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 {
 	assert (condition == G_IO_IN);
 
 	/* Read frame */
-	int ret = HD_CAM->read_frame(NULL);
+	int ret = HD_CAM->read_frame(hdvideo_decode);
 	if(ret == 0)
 		return FALSE;
 
@@ -160,6 +173,7 @@ hdvideo_init()
 		replay_mode: (int)replay_mode,
 	};
 	HD_CAM = new V4LCapture(HD_CAM_DEV, p);
+	HD_DECODER = new FFStreamDecoder("h264");
 
 	main_loop_add_fd (hdvideo_msg_pipe[0],  hdvideo_onmsg, NULL);
 	if(replay_mode){
@@ -206,13 +220,17 @@ static void end_program(void)
 
 int main(int argc, char **argv)
 {
+	avcodec_register_all();
+	av_register_all();
+	av_log_set_level(AV_LOG_DEBUG);
+
 	replay_mode = true;
 	LEFT_CAM_DEV  = "/dev/video1";
 	RIGHT_CAM_DEV = "/dev/video0";
 	HD_CAM_DEV = "/dev/video2";
-	LEFT_CAM_RECORD_PREFIX = "rec_left";
-	RIGHT_CAM_RECORD_PREFIX = "rec_right";
-	HD_CAM_RECORD_PREFIX = "rec_hd";
+	LEFT_CAM_RECORD_PREFIX = "data/rec_left";
+	RIGHT_CAM_RECORD_PREFIX = "data/rec_right";
+	HD_CAM_RECORD_PREFIX = "data/rec_hd";
 
 	GMainLoop* main_loop = NULL;
 	main_loop = g_main_loop_new (NULL, FALSE);
