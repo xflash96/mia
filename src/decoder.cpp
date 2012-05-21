@@ -35,6 +35,11 @@ FFStreamDecoder::FFStreamDecoder(const char *codec_name)
     buf_length = 0;
 
     iformat = av_find_input_format(codec_name);
+    codec = avcodec_find_decoder_by_name(codec_name);
+    if (!codec) {
+        fprintf(stderr, "codec not found\n");
+        exit(1);
+    }
 
     inbuf = (uint8_t *)malloc(INBUF_SIZE + FF_INPUT_BUFFER_PADDING_SIZE);
     assert(inbuf);
@@ -48,11 +53,14 @@ void FFStreamDecoder::setup(){
     pb->write_flag = 0;
     ic = avformat_alloc_context();
     ic->pb = pb;
+    //ic->flags |= AVFMT_NOFILE;
+    //ic->video_codec_id = CODEC_ID_RAWVIDEO;
     if (!av_dict_get(options, "threads", NULL, 0))
         av_dict_set(&options, "threads", "auto", 0);
 
     // open stream
     int ret = avformat_open_input(&ic, "", iformat, &options);
+    //av_find_stream_info(ic);
     fprintf(stderr, "****first****\n");
     if (ret<0) {
         fprintf(stderr, "format error\n");
@@ -74,11 +82,6 @@ void FFStreamDecoder::setup(){
     ctx->flags = CODEC_FLAG_EMU_EDGE;
     ctx->request_sample_fmt = AV_SAMPLE_FMT_NONE;
 
-    codec = avcodec_find_decoder(CODEC_ID_H264);
-    if (!codec) {
-        fprintf(stderr, "codec not found\n");
-        exit(1);
-    }
 
     // open codec
     if (avcodec_open2(ctx, codec, NULL) < 0) {
@@ -102,41 +105,39 @@ FFStreamDecoder::~FFStreamDecoder()
 
 void FFStreamDecoder::decode(uint8_t *buf, int length, int (*on_frame)(AVFrame *frame))
 {
-    this->buf = buf;
-    this->buf_offset = 0;
-    this->buf_length = length;
-    //fprintf(stderr, "length = %d\n", length);
+	this->buf = buf;
+	this->buf_offset = 0;
+	this->buf_length = length;
 
-    if(!ctx){
-	    setup();
-    }
+	if(!ctx){
+		setup();
+	}
 
-    while (this->buf_offset < length) {
+	pkt.data = buf;
+	pkt.size = length;
+	/*
+	   int ret = av_read_frame(ic, &pkt);
+	   fprintf(stderr, "= %d\n", ret);
+	   if (pkt.size==0)
+	   return;
+	*/
 
-	//fprintf(stderr, "offset = %d\n", this->buf_offset);
-        pkt.data = NULL;
-	pkt.size = 0;
-        av_read_frame(ic, &pkt);
-        if (pkt.size==0)
-            return;
+	while (pkt.size > 0) {
+		int got_frame = 0;
 
-        while (pkt.size > 0) {
-            int got_frame = 0;
+		int len = avcodec_decode_video2(ctx, frame, &got_frame, &pkt);
+		if (len < 0) {
+			fprintf(stderr, "Error while decoding frame %d\n", nframe);
+			exit(1);
+		}
 
-            int len = avcodec_decode_video2(ctx, frame, &got_frame, &pkt);
-            if (len < 0) {
-                fprintf(stderr, "Error while decoding frame %d\n", nframe);
-                exit(1);
-            }
-
-            if (got_frame) {
-		fprintf(stderr, "get frame\n");
-                on_frame(frame);
-                nframe++;
-            }
-            pkt.size -= len;
-            pkt.data += len;
-        }
-    }
+		if (got_frame) {
+			fprintf(stderr, "get frame\n");
+			on_frame(frame);
+			nframe++;
+		}
+		pkt.size -= len;
+		pkt.data += len;
+	}
     return;
 }

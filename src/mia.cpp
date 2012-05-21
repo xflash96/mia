@@ -119,12 +119,64 @@ stereo_destroy()
 }
 
 
+#define CLIP(color) (unsigned char)(((color)>0xFF)?0xff:(((color)<0)?0:(color)))
+static void pgm_save(unsigned char **src, int width, int height,
+                     char *filename)
+{
+    FILE *f;
+    int i, j;
+
+    f=fopen(filename,"w");
+    fprintf(f,"P6\n%d %d %d\n",width,height,255);
+    
+    unsigned char *ysrc = src[0];
+    const unsigned char *usrc, *vsrc;
+    unsigned char dest_zero[10000], *dest;
+
+    vsrc = src[2];
+    usrc = src[1];
+
+    for (i = 0; i < height; i++) {
+        dest = dest_zero;
+        for (j = 0; j < width; j += 2) {
+            int u1 = (((*usrc - 128) << 7) +  (*usrc - 128)) >> 6;
+            int rg = (((*usrc - 128) << 1) +  (*usrc - 128) +
+                    ((*vsrc - 128) << 2) + ((*vsrc - 128) << 1)) >> 3;
+            int v1 = (((*vsrc - 128) << 1) +  (*vsrc - 128)) >> 1;
+
+            *dest++ = CLIP(*ysrc + v1);
+            *dest++ = CLIP(*ysrc - rg);
+            *dest++ = CLIP(*ysrc + u1);
+            ysrc++;
+
+            *dest++ = CLIP(*ysrc + v1);
+            *dest++ = CLIP(*ysrc - rg);
+            *dest++ = CLIP(*ysrc + u1);
+
+            ysrc++;
+            usrc++;
+            vsrc++;
+        }
+        /* Rewind u and v for next line */
+        if (!(i&1)) {
+            usrc -= width / 2;
+            vsrc -= width / 2;
+        }
+        fwrite(dest_zero, dest-dest_zero, 1, f);
+    }
+
+    fclose(f);
+}
 /* HD Video CallBacks
  *
  */
+int pgm_cnt = 0;
 int
 hdvideo_on_frame(AVFrame *frame)
 {
+	char buf[100];
+	sprintf(buf, "%03d.pgm", pgm_cnt++);
+	pgm_save(frame->data, 1920, 1080, buf);
 	return 0;
 }
 int
@@ -221,6 +273,7 @@ static void end_program(void)
 int main(int argc, char **argv)
 {
 	avcodec_register_all();
+	avdevice_register_all();
 	av_register_all();
 	av_log_set_level(AV_LOG_DEBUG);
 
@@ -244,9 +297,9 @@ int main(int argc, char **argv)
 	/* GTK INIT */
 	GtkWidget *window;
 	gtk_init (&argc, &argv);
-	window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
-	g_signal_connect (window, "destroy", G_CALLBACK (end_program), NULL);
-	gtk_widget_show (window);
+	//window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+	//g_signal_connect (window, "destroy", G_CALLBACK (end_program), NULL);
+	//gtk_widget_show (window);
 
 	g_main_loop_run(main_loop);
 	return 0;
