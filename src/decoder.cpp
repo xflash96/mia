@@ -53,21 +53,20 @@ void FFStreamDecoder::setup(){
     pb->write_flag = 0;
     ic = avformat_alloc_context();
     ic->pb = pb;
-    //ic->flags |= AVFMT_NOFILE;
-    //ic->video_codec_id = CODEC_ID_RAWVIDEO;
+
     if (!av_dict_get(options, "threads", NULL, 0))
         av_dict_set(&options, "threads", "auto", 0);
 
     // open stream
     int ret = avformat_open_input(&ic, "", iformat, &options);
-    //av_find_stream_info(ic);
-    fprintf(stderr, "****first****\n");
+
     if (ret<0) {
         fprintf(stderr, "format error\n");
         exit(1);
     }
     ic->streams[0]->discard = AVDISCARD_DEFAULT;
     av_dict_free(&options);
+    //av_find_stream_info(ic);
     
     // configure Codec ctx
     ctx = ic->streams[0]->codec;
@@ -113,14 +112,7 @@ void FFStreamDecoder::read(uint8_t *buf, int length)
 
 	pkt.data = buf;
 	pkt.size = length;
-	/*
-	   int ret = av_read_frame(ic, &pkt);
-	   fprintf(stderr, "= %d\n", ret);
-	   if (pkt.size==0)
-	   return;
-	*/
 
-	return;
 }
 AVFrame *FFStreamDecoder::decode()
 {

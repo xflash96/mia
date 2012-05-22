@@ -41,7 +41,6 @@ int xioctl(int fd, int request, void *arg)
 V4LCapture::V4LCapture(const char *dev_name, struct V4LCaptureParam param)
 {
 	n_buffers = 4;
-	//sequence = (__u32)0;
 	if(0==strcmp(dev_name, "")){
 		this->dev_name = NULL;
 		return;
@@ -140,7 +139,7 @@ void V4LCapture::init_device()
 	fmt.type		= V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	fmt.fmt.pix.width	= param.width;
 	fmt.fmt.pix.height	= param.height;
-	fmt.fmt.pix.pixelformat	= param.pixelformat;//V4L2_PIX_FMT_H264;
+	fmt.fmt.pix.pixelformat	= param.pixelformat;
 	fmt.fmt.pix.field	= V4L2_FIELD_INTERLACED;
 
 	if( -1 == xioctl(fd, VIDIOC_S_FMT, &fmt) ){
@@ -262,7 +261,7 @@ int V4LCapture::read_frame(uint8_t **data, struct v4l2_buffer *buf)
 		}
 		int ret = load_frame(&(buffers->start), &buf_now);
 		*data = (uint8_t *) buffers->start;
-		buf = &buf_now;
+		*buf = buf_now;
 		return ret;
 	}
 
@@ -291,11 +290,6 @@ int V4LCapture::read_frame(uint8_t **data, struct v4l2_buffer *buf)
 			errno_exit("VIDIOC_DQBUF");
 		}
 	}
-	/*
-	if (this->sequence != 0)
-		assert(buf.sequence == this->sequence + 1);
-	this->sequence = buf.sequence;
-	*/
 	
 	struct buffer *pbuf = &buffers[buf_now.index];
 
