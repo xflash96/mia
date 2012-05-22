@@ -28,6 +28,19 @@ cv::Mat avframe_to_cvmat(AVFrame *frame)
 	return m;
 }
 
+cv::Mat raw_to_cvmat(uint8_t *data, int width, int height, enum PixelFormat pixel_format)
+{
+	AVFrame avframe;
+	memset(&avframe, 0, sizeof(avframe));
+	avframe.format = pixel_format;
+	avpicture_fill( (AVPicture *)&avframe, avframe.data[0], pixel_format,
+			width, height);
+	avframe.width = width;
+	avframe.height = height;
+	avframe.data[0] = data;
+
+	return avframe_to_cvmat(&avframe);
+}
 #if 0
 
 int64_t timespec_to_ms(struct timespec *t)

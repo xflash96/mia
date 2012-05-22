@@ -67,6 +67,11 @@ stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 	ret = cap->read_frame(&frame, &buf);
 	if(ret == 0)
 		return FALSE;
+
+	cv::Mat m = raw_to_cvmat(frame,
+			cap->param.width, cap->param.height,
+			PIX_FMT_YUYV422);
+
 	if (cap == STEREO_LEFT_CAM) {
 	} else if (cap == STEREO_RIGHT_CAM) {
 	} else {
@@ -127,17 +132,6 @@ stereo_destroy()
 /* HD Video CallBacks
  *
  */
-int pic_cnt;
-int
-hdvideo_on_frame(AVFrame *frame)
-{
-	cv::Mat m = avframe_to_cvmat(frame);
-	char buf[100];
-	sprintf(buf, "%d.jpg", pic_cnt++);
-//	cv::imwrite(buf, m);
-	return 0;
-}
-
 gboolean
 hdvideo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 {
@@ -154,9 +148,9 @@ hdvideo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 	HD_DECODER->read(frame, buf.bytesused);
 
 	while(1){
-		AVFrame* a = HD_DECODER->decode();
-		if(!a) break;
-		cv::Mat m = avframe_to_cvmat(a);
+		AVFrame* dframe = HD_DECODER->decode();
+		if(!dframe) break;
+		cv::Mat m = avframe_to_cvmat(dframe);
 	}
 
 	return TRUE;
@@ -259,8 +253,8 @@ int main(int argc, char **argv)
 	/* GTK INIT */
 	GtkWidget *window;
 	gtk_init (&argc, &argv);
-	//window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
-	//g_signal_connect (window, "destroy", G_CALLBACK (end_program), NULL);
+	window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+	g_signal_connect (window, "destroy", G_CALLBACK (end_program), NULL);
 	//gtk_widget_show (window);
 
 	g_main_loop_run(main_loop);
