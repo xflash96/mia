@@ -59,7 +59,11 @@ int should_wait_timeout(V4LCapture *cap)
 	int64_t time_now = timespec_to_ns(&t);
 	int64_t record_next = timeval_to_ns(&cap->buf_next.timestamp);
 	int64_t record_start = cap->start_time;
-	return record_next-record_start < time_now-replay_start_time;
+#if 0
+	fprintf(stderr, "record: %lld, replay: %lld\n",
+			record_next-record_start, time_now-replay_start_time);
+#endif
+	return record_next-record_start > time_now-replay_start_time;
 }
 
 /* Stereo Vision CallBacks
@@ -120,7 +124,7 @@ stereo_init()
 	}
 	V4LCaptureParam p = {
 		width: 320, height: 240,
-		fps: 120,
+		fps: 125,
 		pixelformat: V4L2_PIX_FMT_YUYV,
 		record_prefix: NULL,
 		replay_mode: (int)replay_mode,
