@@ -12,6 +12,8 @@
 #include "decoder.h"
 #include "convert.h"
 
+int64_t replay_start_time;
+
 V4LCapture *STEREO_LEFT_CAM, *STEREO_RIGHT_CAM, *HD_CAM;
 FFStreamDecoder *HD_DECODER;
 
@@ -50,6 +52,16 @@ void signal_pipe(int *fds)
 	write(fds[1], "1", 1);
 }
 
+int should_wait_timeout(V4LCapture *cap)
+{
+	struct timespec t;
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	int64_t time_now = timespec_to_ns(&t);
+	int64_t record_next = timeval_to_ns(&cap->buf_next.timestamp);
+	int64_t record_start = cap->start_time;
+	return record_next-record_start < time_now-replay_start_time;
+}
+
 /* Stereo Vision CallBacks
  *
  */
@@ -84,7 +96,13 @@ stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 static gboolean
 stereo_timeout(gpointer data)
 {
-	return stereo_onread(NULL, G_IO_IN, data);
+	V4LCapture *cap = (V4LCapture *)data;
+	if(should_wait_timeout(cap)){
+		fprintf(stderr, "stereo wait\n");
+		return TRUE;
+	}else{
+		return stereo_onread(NULL, G_IO_IN, data);
+	}
 }
 
 static gboolean
@@ -101,8 +119,8 @@ stereo_init()
 		errno_exit("PIPE");
 	}
 	V4LCaptureParam p = {
-		width: 640, height: 480,
-		fps: 30,
+		width: 320, height: 240,
+		fps: 120,
 		pixelformat: V4L2_PIX_FMT_YUYV,
 		record_prefix: NULL,
 		replay_mode: (int)replay_mode,
@@ -155,10 +173,16 @@ hdvideo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 
 	return TRUE;
 }
+
 static gboolean
 hdvideo_timeout(gpointer data)
 {
-	return hdvideo_onread(NULL, G_IO_IN, data);
+	if(should_wait_timeout(HD_CAM)){
+		fprintf(stderr, "wait hd\n");
+		return TRUE;
+	}else{
+		return hdvideo_onread(NULL, G_IO_IN, data);
+	}
 }
 
 static gboolean
@@ -183,6 +207,7 @@ hdvideo_init()
 	};
 	HD_CAM = new V4LCapture(HD_CAM_DEV, p);
 	HD_DECODER = new FFStreamDecoder("h264");
+	//HD_CAM->set_h264_video_profile();
 
 	main_loop_add_fd (hdvideo_msg_pipe[0],  hdvideo_onmsg, NULL);
 	if(replay_mode){
@@ -244,7 +269,13 @@ int main(int argc, char **argv)
 	GMainLoop* main_loop = NULL;
 	main_loop = g_main_loop_new (NULL, FALSE);
 
+	struct timespec start_time;
+	int r = clock_gettime(CLOCK_MONOTONIC, &start_time);
+	assert(r==0);
+	replay_start_time = timespec_to_ns(&start_time);
+
 	g_thread_init(NULL);
+
 	/* Queue INIT */
 	stereo_init();
 	hdvideo_init();

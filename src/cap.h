@@ -32,7 +32,7 @@ public:
 	int read_frame(uint8_t **data, struct v4l2_buffer *buf);
 
 	// V4L2 internal
-	struct v4l2_buffer buf_now;
+	struct v4l2_buffer buf_now, buf_next;
 	struct v4l2_capability cap;
 	struct v4l2_cropcap cropcap;
 	struct v4l2_crop crop;
@@ -47,6 +47,9 @@ public:
 	void stop_capturing();
 	void init_mmap();
 
+	void set_h264_video_profile();
+
+	int64_t start_time;
 	FILE *video_rec, *time_rec;
 	void dump_frame(void *data, struct v4l2_buffer *buf);
 	int load_frame(void **data, struct v4l2_buffer *buf);

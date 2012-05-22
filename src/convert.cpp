@@ -41,12 +41,18 @@ cv::Mat raw_to_cvmat(uint8_t *data, int width, int height, enum PixelFormat pixe
 
 	return avframe_to_cvmat(&avframe);
 }
+
+int64_t timespec_to_ns(struct timespec *t)
+{
+	return t->tv_sec*1000000000L + t->tv_nsec;
+}
+
+int64_t timeval_to_ns(struct timeval *t)
+{
+	return t->tv_sec*1000000000L + t->tv_usec*1000;
+}
 #if 0
 
-int64_t timespec_to_ms(struct timespec *t)
-{
-	return t->tv_sec*1000 + t->tv_nsec/1000000;
-}
 
 void write_ppm(const char *name)
 {

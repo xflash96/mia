@@ -20,6 +20,7 @@
 #include <time.h>
 
 #include "cap.h"
+#include "convert.h"
 
 #define CLEAR(x) memset(&(x), 0, sizeof(x))
 
@@ -48,6 +49,12 @@ V4LCapture::V4LCapture(const char *dev_name, struct V4LCaptureParam param)
 	this->dev_name = strdup(dev_name); 
 	this->param = param;
 
+	if(!param.replay_mode){
+		struct timespec t;
+		clock_gettime(CLOCK_MONOTONIC, &t);
+		start_time = timespec_to_ns(&t);
+	}
+	// open records
 	if(param.record_prefix!=NULL){
 		const char *mode;
 		char name[100];
@@ -66,12 +73,22 @@ V4LCapture::V4LCapture(const char *dev_name, struct V4LCaptureParam param)
 		if(!time_rec){
 			errno_exit("cannot open file %s", name);
 		}
-		buffers = NULL;
-		if(param.replay_mode)
-			return;
+		if(param.replay_mode){
+			fread(&start_time, sizeof(start_time), 1, time_rec);
+		}else{
+			fwrite(&start_time, sizeof(start_time), 1, time_rec);
+		}
 	}
-	if(param.replay_mode && !param.record_prefix){
-		errno_exit("record_prefix empty while replay");
+
+	buffers = NULL;
+	if(param.replay_mode) {
+		if(!param.record_prefix) {
+			errno_exit("record_prefix empty while replay");
+		}
+		buffers = (struct buffer*) calloc(1, sizeof(*buffers));
+		buffers->start = NULL;
+		fread(&buf_next, sizeof(buf_next), 1, time_rec);
+		return;
 	}
 
 	open_device();
@@ -158,6 +175,33 @@ void V4LCapture::init_device()
 	init_mmap();
 }
 
+void V4LCapture::set_h264_video_profile()
+{
+	//FIXME see guvcview
+	struct v4l2_queryctrl queryctrl;
+	CLEAR(queryctrl);
+	queryctrl.id = V4L2_CID_MPEG_CLASS;
+
+	if(-1 == xioctl(fd, VIDIOC_QUERYCTRL, &queryctrl) 
+              || queryctrl.flags & V4L2_CTRL_FLAG_DISABLED ){
+		errno_exit("NOT SUPPORT MPEG EXT CTRL");
+	}
+	struct v4l2_ext_controls ext_ctrls;
+	struct v4l2_ext_control ext_ctrl;
+
+	ext_ctrl.id = V4L2_CID_MPEG_VIDEO_H264_PROFILE;
+	ext_ctrl.size = 0;
+	ext_ctrl.value = V4L2_MPEG_VIDEO_H264_PROFILE_MAIN;
+
+	ext_ctrls.ctrl_class = V4L2_CID_MPEG_CLASS;
+	ext_ctrls.count = 1;
+	ext_ctrls.controls = &ext_ctrl;
+
+	if(-1 == xioctl(fd, VIDIOC_S_EXT_CTRLS, &ext_ctrls)){
+		errno_exit("VIDIOC_S_EXT_CTRLS");
+	}
+}
+
 void V4LCapture::init_mmap()
 {
 	struct v4l2_requestbuffers req;
@@ -200,6 +244,8 @@ void V4LCapture::init_mmap()
 					i, n_buffers);
 		}
 	}
+
+	// say it's emtpy
 	buf_now.index = -1;
 }
 void V4LCapture::start_capturing()
@@ -236,29 +282,27 @@ void V4LCapture::dump_frame(void *data, struct v4l2_buffer *buf)
 
 int V4LCapture::load_frame(void **data, struct v4l2_buffer *buf)
 {
-	int ret;
-	ret = fread(buf, sizeof(*buf), 1, time_rec);
-	if(ret == 0){
-		return 0;
-	}
+	*buf = buf_next;
 	if(*data == NULL){
 		*data = malloc(buf->length);
 		if(!*data){
 			errno_exit("calloc error");
 		}
 	}
-	ret = fread(*data, buf->bytesused, 1, video_rec);
-	fprintf(stderr, "load %s %d %d %d bytes\n", dev_name, buf->sequence, buf->bytesused, buf->length);
-	return ret;
+	int len = fread(*data, buf->bytesused, 1, video_rec);
+	fprintf(stderr, "load %s %d %d %d bytes\n", 
+			dev_name, buf->sequence, buf->bytesused, buf->length);
+	int ret = fread(&buf_next, sizeof(buf_next), 1, time_rec);
+	if(ret == 0){
+		buf_next.bytesused = 0;
+		return 0;
+	}
+	return len;
 }
 
 int V4LCapture::read_frame(uint8_t **data, struct v4l2_buffer *buf)
 {
 	if (param.replay_mode) {
-		if(buffers==NULL){
-			buffers = (struct buffer*) calloc(1, sizeof(*buffers));
-			buffers->start = NULL;
-		}
 		int ret = load_frame(&(buffers->start), &buf_now);
 		*data = (uint8_t *) buffers->start;
 		*buf = buf_now;
