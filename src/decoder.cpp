@@ -91,7 +91,6 @@ void FFStreamDecoder::setup(){
 
     frame = avcodec_alloc_frame();
     av_init_packet(&pkt);
-    nframe = 0;
 
 }
 
@@ -103,13 +102,12 @@ FFStreamDecoder::~FFStreamDecoder()
     av_free(frame);
 }
 
-void FFStreamDecoder::decode(uint8_t *buf, int length, int (*on_frame)(AVFrame *frame))
+void FFStreamDecoder::read(uint8_t *buf, int length)
 {
-	this->buf = buf;
-	this->buf_offset = 0;
-	this->buf_length = length;
-
 	if(!ctx){
+		this->buf = buf;
+		this->buf_offset = 0;
+		this->buf_length = length;
 		setup();
 	}
 
@@ -122,22 +120,23 @@ void FFStreamDecoder::decode(uint8_t *buf, int length, int (*on_frame)(AVFrame *
 	   return;
 	*/
 
-	while (pkt.size > 0) {
-		int got_frame = 0;
+	return;
+}
+AVFrame *FFStreamDecoder::decode()
+{
+	int got_frame = 0;
 
-		int len = avcodec_decode_video2(ctx, frame, &got_frame, &pkt);
-		if (len < 0) {
-			fprintf(stderr, "Error while decoding frame %d\n", nframe);
-			exit(1);
-		}
-
-		if (got_frame) {
-			fprintf(stderr, "get frame\n");
-			on_frame(frame);
-			nframe++;
-		}
-		pkt.size -= len;
-		pkt.data += len;
+	int len = avcodec_decode_video2(ctx, frame, &got_frame, &pkt);
+	if (len < 0) {
+		fprintf(stderr, "Error while decoding frame");
+		exit(1);
 	}
-    return;
+
+	pkt.size -= len;
+	pkt.data += len;
+
+	if(got_frame)
+		return frame;
+	else
+		return NULL;
 }

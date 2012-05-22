@@ -41,7 +41,7 @@ int xioctl(int fd, int request, void *arg)
 V4LCapture::V4LCapture(const char *dev_name, struct V4LCaptureParam param)
 {
 	n_buffers = 4;
-	sequence = (__u32)0;
+	//sequence = (__u32)0;
 	if(0==strcmp(dev_name, "")){
 		this->dev_name = NULL;
 		return;
@@ -70,6 +70,9 @@ V4LCapture::V4LCapture(const char *dev_name, struct V4LCaptureParam param)
 		buffers = NULL;
 		if(param.replay_mode)
 			return;
+	}
+	if(param.replay_mode && !param.record_prefix){
+		errno_exit("record_prefix empty while replay");
 	}
 
 	open_device();
@@ -198,6 +201,7 @@ void V4LCapture::init_mmap()
 					i, n_buffers);
 		}
 	}
+	buf_now.index = -1;
 }
 void V4LCapture::start_capturing()
 {
@@ -249,27 +253,31 @@ int V4LCapture::load_frame(void **data, struct v4l2_buffer *buf)
 	return ret;
 }
 
-int V4LCapture::read_frame(int (*onread)(uint8_t *data, struct v4l2_buffer *buf))
+int V4LCapture::read_frame(uint8_t **data, struct v4l2_buffer *buf)
 {
-	struct v4l2_buffer buf;
 	if (param.replay_mode) {
 		if(buffers==NULL){
 			buffers = (struct buffer*) calloc(1, sizeof(*buffers));
 			buffers->start = NULL;
 		}
-		int ret = load_frame(&(buffers->start), &buf);
-		if(ret != 0 && onread!=NULL){
-			onread((uint8_t *)buffers->start, &buf);
-		}
+		int ret = load_frame(&(buffers->start), &buf_now);
+		*data = (uint8_t *) buffers->start;
+		buf = &buf_now;
 		return ret;
 	}
 
-	CLEAR( buf );
+	if( (int)buf_now.index != -1 ) {
+		if( -1 == xioctl(fd, VIDIOC_QBUF, &buf_now) ){
+			errno_exit("VIDIOC_QBUF");
+		}
+	}
+	
+	CLEAR( buf_now );
 
-	buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	buf.memory = V4L2_MEMORY_MMAP;
+	buf_now.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	buf_now.memory = V4L2_MEMORY_MMAP;
 
-	if( -1 == xioctl(fd, VIDIOC_DQBUF, &buf) ){
+	if( -1 == xioctl(fd, VIDIOC_DQBUF, &buf_now) ){
 		if (EAGAIN == errno) {
 			return -1;
 			errno_exit("EAGAIN");
@@ -289,22 +297,18 @@ int V4LCapture::read_frame(int (*onread)(uint8_t *data, struct v4l2_buffer *buf)
 	this->sequence = buf.sequence;
 	*/
 	
-	struct buffer *pbuf = &buffers[buf.index];
+	struct buffer *pbuf = &buffers[buf_now.index];
 
 	if (param.record_prefix != NULL) {
-		dump_frame((uint8_t *)pbuf->start, &buf);
+		dump_frame((uint8_t *)pbuf->start, &buf_now);
 	}
 
-	if (onread != NULL){
-		onread( (uint8_t *)pbuf->start, &buf);
-	}
+	*data = (uint8_t *) pbuf->start;
+	*buf = buf_now;
+
+	return buf_now.bytesused;
 
 
-	if( -1 == xioctl(fd, VIDIOC_QBUF, &buf) ){
-		errno_exit("VIDIOC_QBUF");
-	}
-	
-	return buf.bytesused;
 }
 void V4LCapture::stop_capturing()
 {

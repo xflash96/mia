@@ -1,7 +1,6 @@
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
-#include <libavdevice/avdevice.h>
 }
 
 #define INBUF_SIZE 4096
@@ -12,8 +11,8 @@ public:
     FFStreamDecoder(const char *codec_name);
     ~FFStreamDecoder();
 
-    void decode(uint8_t *buf, int length, int (*on_frame)(AVFrame *frame));
-    int nframe;
+    void read(uint8_t *buf, int length);
+    AVFrame *decode();
 
     void setup();
 
