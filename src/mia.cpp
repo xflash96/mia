@@ -17,6 +17,8 @@
 #include "convert.h"
 #include "stereo.h"
 
+int64_t process_start_time = INT64_MAX;
+
 V4LCapture *STEREO_LEFT_CAM, *STEREO_RIGHT_CAM, *HD_CAM;
 FFStreamDecoder *HD_DECODER;
 
@@ -109,10 +111,8 @@ stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 			PIX_FMT_YUYV422);
 
 	if (cap == STEREO_LEFT_CAM) {
-		cv::imshow("left", m);
 		stereo_left_img = m;
 	} else if (cap == STEREO_RIGHT_CAM) {
-		cv::imshow("right", m);
 		stereo_right_img = m;
 	} else {
 		errno_exit("NOT proper CAM");
@@ -121,7 +121,7 @@ stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 		return TRUE;
 	}
 	matched_count++;
-	fprintf(stderr, "mis: [%d/%d]\n", total_count-matched_count*2, total_count);
+	fprintf(stderr, "mis: %d\t[%.3f]\n", total_count-matched_count*2, matched_count*1e9/(time_now_ns()-process_start_time));
 	process_stereo(stereo_left_img, stereo_right_img, cap_time);
 
 	return TRUE;
@@ -280,6 +280,7 @@ replay_timeout(gpointer data)
 
 	if(start_time_diff == INT64_MAX){
 		start_time_diff = min_time - time_now_ns();
+		process_start_time = time_now_ns();
 	}
 
 	int64_t replay_time = time_now_ns() + start_time_diff;

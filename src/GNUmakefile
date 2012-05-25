@@ -16,7 +16,7 @@ CFLAGS := -g -Wall -Werror -O3 \
 	$(OPENCV_CFLAGS) \
 	$(FFMPEG_CFLAGS) 
 	 #-Wconversion 
-LDFLAGS := -lv4l2 \
+LDFLAGS := -lv4l2 -O3 \
 	$(GLIB_LDFLAGS) \
 	$(GTK2_LDFLAGS) \
 	$(OPENCV_LDFLAGS) \
