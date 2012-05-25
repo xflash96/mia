@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
 # ifndef __STDC_LIMIT_MACROS
 # define __STDC_LIMIT_MACROS
 # endif
@@ -16,6 +17,8 @@
 #include "decoder.h"
 #include "convert.h"
 #include "stereo.h"
+
+gint IO_PRIORITY = G_PRIORITY_HIGH;
 
 int64_t process_start_time = INT64_MAX;
 
@@ -78,6 +81,7 @@ int STEREO_WAIT_PAIR;
 gboolean
 stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 {
+	fprintf(stderr, ".");
 	assert (condition == G_IO_IN);
 
 	/* Read frame */
@@ -85,7 +89,7 @@ stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 	uint8_t *frame;
 	struct v4l2_buffer buf;
 	int ret;
-	int64_t tolerance= 2000000L, cap_time;
+	int64_t tolerance= 1000000000L/cap->param.fps/2, cap_time;
 
 	ret = cap->read_frame(&frame, &buf);
 	if(ret == 0)
@@ -95,6 +99,15 @@ stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 	cap_time = timeval_to_ns(&buf.timestamp);
 	if(cap_time > stereo_prev_cap_time+tolerance){
 		// new frame comes, replace old whether it is matched
+		if(STEREO_WAIT_PAIR){
+			fprintf(stderr, "prev: %ld ", 
+					(stereo_prev_cap_time-
+					cap_time)/1000000);
+			if(cap==STEREO_LEFT_CAM)
+				fprintf(stderr, "left\n");
+			else
+				fprintf(stderr, "right\n");
+		}
 		stereo_prev_cap_time = cap_time;
 		STEREO_WAIT_PAIR = 1;
 	}else if(cap_time < stereo_prev_cap_time-tolerance){
@@ -121,7 +134,9 @@ stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 		return TRUE;
 	}
 	matched_count++;
-	fprintf(stderr, "mis: %d\t[%.3f]\n", total_count-matched_count*2, matched_count*1e9/(time_now_ns()-process_start_time));
+	fprintf(stderr, "mis: %.3f\t[%.3f]\n", 
+		(total_count-matched_count*2)*1e9/(time_now_ns()-process_start_time),
+		matched_count*1e9/(time_now_ns()-process_start_time));
 	process_stereo(stereo_left_img, stereo_right_img, cap_time);
 
 	return TRUE;
@@ -152,7 +167,7 @@ stereo_init()
 	p.record_prefix = RIGHT_CAM_RECORD_PREFIX;
 	STEREO_RIGHT_CAM = new V4LCapture(RIGHT_CAM_DEV, p);
 
-	main_loop_add_fd (stereo_msg_pipe[0],   stereo_onmsg, NULL, G_PRIORITY_DEFAULT);
+	main_loop_add_fd (stereo_msg_pipe[0],   stereo_onmsg, NULL, G_PRIORITY_HIGH);
 	if(!replay_mode){
 		main_loop_add_fd (STEREO_LEFT_CAM->fd, stereo_onread, STEREO_LEFT_CAM, G_PRIORITY_HIGH);
 		main_loop_add_fd (STEREO_RIGHT_CAM->fd, stereo_onread, STEREO_RIGHT_CAM, G_PRIORITY_HIGH);
@@ -162,6 +177,8 @@ stereo_init()
 static void 
 stereo_destroy()
 {
+	delete STEREO_LEFT_CAM;
+	delete STEREO_RIGHT_CAM;
 	g_async_queue_unref(STEREO_MSG_Q);
 }
 
@@ -182,10 +199,10 @@ hdvideo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 	ret = HD_CAM->read_frame(&frame, &buf);
 	if(ret == 0)
 		return FALSE;
-	HD_DECODER->read(frame, buf.bytesused);
+	//HD_DECODER->read(frame, buf.bytesused);
 
 	while(1){
-		AVFrame* dframe = HD_DECODER->decode();
+		AVFrame* dframe = NULL;//HD_DECODER->decode();
 		if(!dframe) break;
 		cv::Mat m = avframe_to_cvmat(dframe);
 	}
@@ -226,6 +243,7 @@ hdvideo_init()
 static void
 hdvideo_destroy()
 {
+	delete HD_CAM;
 	g_async_queue_unref(HDVIDEO_MSG_Q);
 }
 
@@ -246,7 +264,7 @@ ui_init()
 	if (0 > pipe(ui_msg_pipe)) {
 		errno_exit("PIPE");
 	}
-	main_loop_add_fd(ui_msg_pipe[0], ui_onmsg, NULL, G_PRIORITY_HIGH);
+	main_loop_add_fd(ui_msg_pipe[0], ui_onmsg, NULL, G_PRIORITY_DEFAULT);
 }
 
 int64_t start_time_diff = INT64_MAX;
@@ -291,7 +309,6 @@ replay_timeout(gpointer data)
 	}
 }
 
-
 static void end_program(void)
 {
 	stereo_destroy();
@@ -300,13 +317,18 @@ static void end_program(void)
 	exit(0);
 }
 
+static void sigint_handler(int dummy)
+{
+	end_program();
+}
+
 int main(int argc, char **argv)
 {
 	avcodec_register_all();
 	av_register_all();
 	av_log_set_level(AV_LOG_DEBUG);
 
-	replay_mode = true;
+	replay_mode = argc<2;
 	LEFT_CAM_DEV  = "/dev/video1";
 	RIGHT_CAM_DEV = "/dev/video0";
 	HD_CAM_DEV = "/dev/video2";
@@ -324,6 +346,8 @@ int main(int argc, char **argv)
 	hdvideo_init();
 	ui_init();
 
+	signal(SIGINT, sigint_handler);
+	signal(SIGTERM, sigint_handler);
 	/* GTK INIT */
 	GtkWidget *window;
 	gtk_init (&argc, &argv);
@@ -333,6 +357,8 @@ int main(int argc, char **argv)
 
 	if(replay_mode)
 		g_timeout_add_full(G_PRIORITY_HIGH, 2, replay_timeout, NULL, NULL);
+	else
+		process_start_time = time_now_ns();
 
 	g_main_loop_run(main_loop);
 	return 0;

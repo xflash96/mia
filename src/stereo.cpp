@@ -24,4 +24,5 @@ void process_stereo(cv::Mat left_img, cv::Mat right_img, int64_t cap_time)
 
 	imshow("left_feat", left_img);
 	imshow("right_feat", right_img);
+	waitKey(1);
 }
