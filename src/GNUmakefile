@@ -10,7 +10,7 @@ OPENCV_LDFLAGS := $(shell pkg-config --libs opencv)
 # OpenCV featrue_2d improperly include -lhighgui, which use gtk+2.0
 # So we have to use it for the moment if we don'et want to recompile it.
 
-CFLAGS := -g -Wall -O3 \
+CFLAGS := -g -Wall -Werror -O3 \
 	$(GLIB_CFLAGS) \
 	$(GTK2_CFLAGS) \
 	$(OPENCV_CFLAGS) \
@@ -28,7 +28,7 @@ CXX := g++
 
 PROGRAMS := mia
 
-mia: mia.o cap.o decoder.o convert.o
+mia: mia.o cap.o decoder.o convert.o stereo.o
 	$(CXX) $^ -o $@ $(LDFLAGS)
 
 .PHONY: all clean install

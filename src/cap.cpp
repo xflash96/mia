@@ -277,7 +277,9 @@ void V4LCapture::dump_frame(void *data, struct v4l2_buffer *buf)
 {
 	fwrite(data, buf->bytesused, 1, video_rec);
 	fwrite(buf, sizeof(*buf), 1, time_rec);
+#if 0
 	fprintf(stderr, "dump %s %d\n", dev_name, buf->sequence);
+#endif
 }
 
 int V4LCapture::load_frame(void **data, struct v4l2_buffer *buf)
@@ -290,12 +292,13 @@ int V4LCapture::load_frame(void **data, struct v4l2_buffer *buf)
 		}
 	}
 	int len = fread(*data, buf->bytesused, 1, video_rec);
+#if 0
 	fprintf(stderr, "load %s %d %d %d bytes\n", 
 			dev_name, buf->sequence, buf->bytesused, buf->length);
+#endif
 	int ret = fread(&buf_next, sizeof(buf_next), 1, time_rec);
 	if(ret == 0){
 		buf_next.bytesused = 0;
-		return 0;
 	}
 	return len;
 }

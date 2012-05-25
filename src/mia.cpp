@@ -1,5 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
+# ifndef __STDC_LIMIT_MACROS
+# define __STDC_LIMIT_MACROS
+# endif
+#include <stdint.h>
 #include <assert.h>
 #include <stdarg.h>
 #include <string.h>
@@ -11,8 +15,7 @@
 #include "cap.h"
 #include "decoder.h"
 #include "convert.h"
-
-int64_t replay_start_time;
+#include "stereo.h"
 
 V4LCapture *STEREO_LEFT_CAM, *STEREO_RIGHT_CAM, *HD_CAM;
 FFStreamDecoder *HD_DECODER;
@@ -27,6 +30,10 @@ const char *LEFT_CAM_RECORD_PREFIX;
 const char *RIGHT_CAM_RECORD_PREFIX;
 const char *HD_CAM_RECORD_PREFIX;
 
+volatile int64_t stereo_prev_cap_time;
+cv::Mat stereo_left_img, stereo_right_img;
+
+
 bool replay_mode = false;
 bool record_video = false;
 
@@ -40,11 +47,11 @@ void errno_exit(const char *tmpl, ...)
 	exit(EXIT_FAILURE);
 }
 
-void main_loop_add_fd(int fd, GIOFunc callback, gpointer data)
+void main_loop_add_fd(int fd, GIOFunc callback, gpointer data, gint priority)
 {
 	GIOChannel *chan = NULL;
 	chan = g_io_channel_unix_new(fd);
-	g_io_add_watch(chan, G_IO_IN, callback, data);
+	g_io_add_watch_full(chan, priority, G_IO_IN, callback, data, NULL);
 }
 
 void signal_pipe(int *fds)
@@ -52,24 +59,21 @@ void signal_pipe(int *fds)
 	write(fds[1], "1", 1);
 }
 
-int should_wait_timeout(V4LCapture *cap)
+inline int64_t time_now_ns()
 {
-	struct timespec t;
-	clock_gettime(CLOCK_MONOTONIC, &t);
-	int64_t time_now = timespec_to_ns(&t);
-	int64_t record_next = timeval_to_ns(&cap->buf_next.timestamp);
-	int64_t record_start = cap->start_time;
-#if 0
-	fprintf(stderr, "record: %lld, replay: %lld\n",
-			record_next-record_start, time_now-replay_start_time);
-#endif
-	return record_next-record_start > time_now-replay_start_time;
+	struct timespec tspec;
+	int r = clock_gettime(CLOCK_MONOTONIC, &tspec);
+	assert(r==0);
+	return timespec_to_ns(&tspec);
 }
 
+int matched_count;
+int total_count;
+int STEREO_WAIT_PAIR;
 /* Stereo Vision CallBacks
  *
  */
-static gboolean
+gboolean
 stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 {
 	assert (condition == G_IO_IN);
@@ -79,34 +83,48 @@ stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 	uint8_t *frame;
 	struct v4l2_buffer buf;
 	int ret;
+	int64_t tolerance= 2000000L, cap_time;
 
 	ret = cap->read_frame(&frame, &buf);
 	if(ret == 0)
 		return FALSE;
+	total_count++;
 
+	cap_time = timeval_to_ns(&buf.timestamp);
+	if(cap_time > stereo_prev_cap_time+tolerance){
+		// new frame comes, replace old whether it is matched
+		stereo_prev_cap_time = cap_time;
+		STEREO_WAIT_PAIR = 1;
+	}else if(cap_time < stereo_prev_cap_time-tolerance){
+		// this frame is too old, disgard it
+		return TRUE;
+	}else{
+		// frame matched, process pair
+		STEREO_WAIT_PAIR = 0;
+	}
+
+	// conversion and save
 	cv::Mat m = raw_to_cvmat(frame,
 			cap->param.width, cap->param.height,
 			PIX_FMT_YUYV422);
 
 	if (cap == STEREO_LEFT_CAM) {
+		cv::imshow("left", m);
+		stereo_left_img = m;
 	} else if (cap == STEREO_RIGHT_CAM) {
+		cv::imshow("right", m);
+		stereo_right_img = m;
 	} else {
 		errno_exit("NOT proper CAM");
 	}
+	if(STEREO_WAIT_PAIR){
+		return TRUE;
+	}
+	matched_count++;
+	fprintf(stderr, "mis: [%d/%d]\n", total_count-matched_count*2, total_count);
+	process_stereo(stereo_left_img, stereo_right_img, cap_time);
 
 	return TRUE;
-}
-
-static gboolean
-stereo_timeout(gpointer data)
-{
-	V4LCapture *cap = (V4LCapture *)data;
-	if(should_wait_timeout(cap)){
-		fprintf(stderr, "stereo wait\n");
-		return TRUE;
-	}else{
-		return stereo_onread(NULL, G_IO_IN, data);
-	}
 }
 
 static gboolean
@@ -134,13 +152,10 @@ stereo_init()
 	p.record_prefix = RIGHT_CAM_RECORD_PREFIX;
 	STEREO_RIGHT_CAM = new V4LCapture(RIGHT_CAM_DEV, p);
 
-	main_loop_add_fd (stereo_msg_pipe[0],   stereo_onmsg, NULL);
-	if(replay_mode){
-		g_timeout_add(1000/p.fps, stereo_timeout, STEREO_LEFT_CAM);
-		g_timeout_add(1000/p.fps, stereo_timeout, STEREO_RIGHT_CAM);
-	}else{
-		main_loop_add_fd (STEREO_LEFT_CAM->fd, stereo_onread, STEREO_LEFT_CAM);
-		main_loop_add_fd (STEREO_RIGHT_CAM->fd, stereo_onread, STEREO_RIGHT_CAM);
+	main_loop_add_fd (stereo_msg_pipe[0],   stereo_onmsg, NULL, G_PRIORITY_DEFAULT);
+	if(!replay_mode){
+		main_loop_add_fd (STEREO_LEFT_CAM->fd, stereo_onread, STEREO_LEFT_CAM, G_PRIORITY_HIGH);
+		main_loop_add_fd (STEREO_RIGHT_CAM->fd, stereo_onread, STEREO_RIGHT_CAM, G_PRIORITY_HIGH);
 	}
 }
 
@@ -179,17 +194,6 @@ hdvideo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 }
 
 static gboolean
-hdvideo_timeout(gpointer data)
-{
-	if(should_wait_timeout(HD_CAM)){
-		fprintf(stderr, "wait hd\n");
-		return TRUE;
-	}else{
-		return hdvideo_onread(NULL, G_IO_IN, data);
-	}
-}
-
-static gboolean
 hdvideo_onmsg(GIOChannel *source, GIOCondition condition, gpointer data)
 {
 	return TRUE;
@@ -213,11 +217,9 @@ hdvideo_init()
 	HD_DECODER = new FFStreamDecoder("h264");
 	//HD_CAM->set_h264_video_profile();
 
-	main_loop_add_fd (hdvideo_msg_pipe[0],  hdvideo_onmsg, NULL);
-	if(replay_mode){
-		g_timeout_add (1000/p.fps, hdvideo_timeout, NULL);
-	}else{
-		main_loop_add_fd (HD_CAM->fd, hdvideo_onread, NULL);
+	main_loop_add_fd (hdvideo_msg_pipe[0],  hdvideo_onmsg, NULL, G_PRIORITY_HIGH);
+	if(!replay_mode){
+		main_loop_add_fd (HD_CAM->fd, hdvideo_onread, NULL, G_PRIORITY_DEFAULT);
 	}
 }
 
@@ -244,7 +246,48 @@ ui_init()
 	if (0 > pipe(ui_msg_pipe)) {
 		errno_exit("PIPE");
 	}
-	main_loop_add_fd(ui_msg_pipe[0], ui_onmsg, NULL);
+	main_loop_add_fd(ui_msg_pipe[0], ui_onmsg, NULL, G_PRIORITY_HIGH);
+}
+
+int64_t start_time_diff = INT64_MAX;
+gboolean
+replay_timeout(gpointer data)
+{
+	int64_t min_time= INT64_MAX;
+	GIOFunc min_callback = NULL;
+	V4LCapture *min_cap = NULL;
+
+	V4LCapture *caps[] = {
+		STEREO_LEFT_CAM,
+		STEREO_RIGHT_CAM,
+		HD_CAM };
+	GIOFunc callbacks[] = {
+		stereo_onread,
+		stereo_onread,
+		hdvideo_onread,
+	};
+	int n_cams = 3;
+
+	for(int i=0; i<n_cams; i++){
+		V4LCapture *cap = caps[i];
+		int64_t cap_time = timeval_to_ns(&cap->buf_next.timestamp);
+		if(min_time > cap_time){
+			min_time = cap_time;
+			min_callback = callbacks[i];
+			min_cap = cap;
+		}
+	}
+
+	if(start_time_diff == INT64_MAX){
+		start_time_diff = min_time - time_now_ns();
+	}
+
+	int64_t replay_time = time_now_ns() + start_time_diff;
+	if(min_time < replay_time){
+		return min_callback(NULL, G_IO_IN, min_cap);
+	}else{
+		return TRUE;
+	}
 }
 
 
@@ -273,11 +316,6 @@ int main(int argc, char **argv)
 	GMainLoop* main_loop = NULL;
 	main_loop = g_main_loop_new (NULL, FALSE);
 
-	struct timespec start_time;
-	int r = clock_gettime(CLOCK_MONOTONIC, &start_time);
-	assert(r==0);
-	replay_start_time = timespec_to_ns(&start_time);
-
 	g_thread_init(NULL);
 
 	/* Queue INIT */
@@ -291,6 +329,9 @@ int main(int argc, char **argv)
 	window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
 	g_signal_connect (window, "destroy", G_CALLBACK (end_program), NULL);
 	//gtk_widget_show (window);
+
+	if(replay_mode)
+		g_timeout_add_full(G_PRIORITY_HIGH, 2, replay_timeout, NULL, NULL);
 
 	g_main_loop_run(main_loop);
 	return 0;
