@@ -41,7 +41,7 @@ int xioctl(int fd, int request, void *arg)
 
 V4LCapture::V4LCapture(const char *dev_name, struct V4LCaptureParam param)
 {
-	n_buffers = 4;
+	n_buffers = 8;
 	video_rec = time_rec = NULL;
 	if(0==strcmp(dev_name, "")){
 		this->dev_name = NULL;

@@ -1,4 +1,9 @@
-#include <linux/videodev2.h>
+#define __APPLE__
+#ifdef __APPLE__
+	#include "apple/videodev2.h"
+#else
+//	#include <linux/videodev2.h>
+#endif
 #include <opencv2/opencv.hpp>
 #include <time.h>
 

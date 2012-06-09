@@ -64,7 +64,7 @@ void signal_pipe(int *fds)
 	write(fds[1], "1", 1);
 }
 
-inline int64_t time_now_ns()
+int64_t time_now_ns()
 {
 	struct timespec tspec;
 	int r = clock_gettime(CLOCK_MONOTONIC, &tspec);
@@ -117,6 +117,16 @@ stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 		// frame matched, process pair
 		STEREO_WAIT_PAIR = 0;
 	}
+	fprintf(stderr, "%d\n", buf.bytesused);
+#if 0
+	char name[100];
+	sprintf(name, "%03d.pgm", total_count);
+	FILE *f = fopen(name, "w");
+	fprintf(f, "P5 %d %d 255\n", cap->param.width, cap->param.height);
+	fwrite(frame, 1, cap->param.width*cap->param.height, f);
+	fclose(f);
+	return TRUE;
+#endif
 
 	// conversion and save
 	cv::Mat m = raw_to_cvmat(frame,
@@ -157,7 +167,7 @@ stereo_init()
 	}
 	V4LCaptureParam p = {
 		width: 320, height: 240,
-		fps: 125,
+		fps: 30,
 		pixelformat: V4L2_PIX_FMT_YUYV,
 		record_prefix: NULL,
 		replay_mode: (int)replay_mode,
@@ -199,10 +209,10 @@ hdvideo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 	ret = HD_CAM->read_frame(&frame, &buf);
 	if(ret == 0)
 		return FALSE;
-	//HD_DECODER->read(frame, buf.bytesused);
+	HD_DECODER->read(frame, buf.bytesused);
 
 	while(1){
-		AVFrame* dframe = NULL;//HD_DECODER->decode();
+		AVFrame* dframe = HD_DECODER->decode();
 		if(!dframe) break;
 		cv::Mat m = avframe_to_cvmat(dframe);
 	}
@@ -224,7 +234,7 @@ hdvideo_init()
 		errno_exit("PIPE");
 	}
 	V4LCaptureParam p = {
-		width: 1920, height: 1080,
+		width: 800, height: 600,
 		fps: 30,
 		pixelformat: V4L2_PIX_FMT_H264,
 		record_prefix: HD_CAM_RECORD_PREFIX,
@@ -236,7 +246,7 @@ hdvideo_init()
 
 	main_loop_add_fd (hdvideo_msg_pipe[0],  hdvideo_onmsg, NULL, G_PRIORITY_HIGH);
 	if(!replay_mode){
-		main_loop_add_fd (HD_CAM->fd, hdvideo_onread, NULL, G_PRIORITY_DEFAULT);
+		main_loop_add_fd (HD_CAM->fd, hdvideo_onread, NULL, G_PRIORITY_HIGH);
 	}
 }
 
@@ -332,8 +342,8 @@ int main(int argc, char **argv)
 	LEFT_CAM_DEV  = "/dev/video1";
 	RIGHT_CAM_DEV = "/dev/video0";
 	HD_CAM_DEV = "/dev/video2";
-	LEFT_CAM_RECORD_PREFIX = "data/rec_left";
-	RIGHT_CAM_RECORD_PREFIX = "data/rec_right";
+//	LEFT_CAM_RECORD_PREFIX = "data/rec_left";
+//	RIGHT_CAM_RECORD_PREFIX = "data/rec_right";
 	HD_CAM_RECORD_PREFIX = "data/rec_hd";
 
 	GMainLoop* main_loop = NULL;
