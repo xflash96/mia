@@ -16,7 +16,7 @@ CFLAGS := -g -Wall -Werror -O3 \
 	$(OPENCV_CFLAGS) \
 	$(FFMPEG_CFLAGS) 
 	 #-Wconversion 
-LDFLAGS := -lv4l2 -O3 \
+LDFLAGS := -O3 \
 	$(GLIB_LDFLAGS) \
 	$(GTK2_LDFLAGS) \
 	$(OPENCV_LDFLAGS) \
@@ -28,7 +28,7 @@ CXX := g++
 
 PROGRAMS := mia
 
-mia: mia.o cap.o decoder.o convert.o stereo.o
+mia: mia.o cap.o decoder.o convert.o stereo.o calib.o
 	$(CXX) $^ -o $@ $(LDFLAGS)
 
 .PHONY: all clean install

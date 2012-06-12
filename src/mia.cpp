@@ -17,30 +17,50 @@
 #include "decoder.h"
 #include "convert.h"
 #include "stereo.h"
+#include "calib.h"
 
-gint IO_PRIORITY = G_PRIORITY_HIGH;
-
-int64_t process_start_time = INT64_MAX;
-
-V4LCapture *STEREO_LEFT_CAM, *STEREO_RIGHT_CAM, *HD_CAM;
-FFStreamDecoder *HD_DECODER;
-
-GAsyncQueue *STEREO_MSG_Q, *HDVIDEO_MSG_Q, *UI_MSG_Q;
-int stereo_msg_pipe[2], hdvideo_msg_pipe[2], ui_msg_pipe[2];
+//static gint IO_PRIORITY = G_PRIORITY_HIGH;
 
 const char *LEFT_CAM_DEV;
 const char *RIGHT_CAM_DEV; 
 const char *HD_CAM_DEV;
+
 const char *LEFT_CAM_RECORD_PREFIX;
 const char *RIGHT_CAM_RECORD_PREFIX;
 const char *HD_CAM_RECORD_PREFIX;
 
+const char *INTRINSICS_PATH;
+
+volatile int64_t process_start_time = INT64_MAX;
 volatile int64_t stereo_prev_cap_time;
-cv::Mat stereo_left_img, stereo_right_img;
+static bool replay_mode = false;
 
+class MiaContext
+{
+public:
+	enum State
+	{
+		CALIB_STEREO,
+		CALIB_HDVIDEO,
+		ONLINE,
+		REPLAY
+	}state;
 
-bool replay_mode = false;
-bool record_video = false;
+	bool record_video;
+
+	V4LCapture *left_cam, *right_cam, *hd_cam;
+	FFStreamDecoder *hd_decoder;
+
+	cv::Mat left_img, right_img;
+	cv::Mat hdvideo_img;
+
+	CamParams left_camp, right_camp, hd_camp;
+
+	const char *intrinsics_path;
+} *CTX;
+
+GAsyncQueue *STEREO_MSG_Q, *HDVIDEO_MSG_Q, *UI_MSG_Q;
+int stereo_msg_pipe[2], hdvideo_msg_pipe[2], ui_msg_pipe[2];
 
 void errno_exit(const char *tmpl, ...)
 {
@@ -81,7 +101,6 @@ int STEREO_WAIT_PAIR;
 gboolean
 stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 {
-	fprintf(stderr, ".");
 	assert (condition == G_IO_IN);
 
 	/* Read frame */
@@ -101,9 +120,8 @@ stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 		// new frame comes, replace old whether it is matched
 		if(STEREO_WAIT_PAIR){
 			fprintf(stderr, "prev: %ld ", 
-					(stereo_prev_cap_time-
-					cap_time)/1000000);
-			if(cap==STEREO_LEFT_CAM)
+				(stereo_prev_cap_time-cap_time)/1000000);
+			if(cap==CTX->left_cam)
 				fprintf(stderr, "left\n");
 			else
 				fprintf(stderr, "right\n");
@@ -117,7 +135,6 @@ stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 		// frame matched, process pair
 		STEREO_WAIT_PAIR = 0;
 	}
-	fprintf(stderr, "%d\n", buf.bytesused);
 #if 0
 	char name[100];
 	sprintf(name, "%03d.pgm", total_count);
@@ -127,16 +144,17 @@ stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 	fclose(f);
 	return TRUE;
 #endif
+	return TRUE;
 
 	// conversion and save
 	cv::Mat m = raw_to_cvmat(frame,
 			cap->param.width, cap->param.height,
 			PIX_FMT_YUYV422);
 
-	if (cap == STEREO_LEFT_CAM) {
-		stereo_left_img = m;
-	} else if (cap == STEREO_RIGHT_CAM) {
-		stereo_right_img = m;
+	if (cap == CTX->left_cam) {
+		CTX->left_img = m;
+	} else if (cap == CTX->right_cam) {
+		CTX->right_img = m;
 	} else {
 		errno_exit("NOT proper CAM");
 	}
@@ -144,10 +162,17 @@ stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 		return TRUE;
 	}
 	matched_count++;
-	fprintf(stderr, "mis: %.3f\t[%.3f]\n", 
-		(total_count-matched_count*2)*1e9/(time_now_ns()-process_start_time),
+	if(matched_count%100==0)
+	fprintf(stderr, "mis: %d\t[%.3f]\n", 
+		(total_count-matched_count*2),
 		matched_count*1e9/(time_now_ns()-process_start_time));
-	process_stereo(stereo_left_img, stereo_right_img, cap_time);
+
+	cv::imshow("left", CTX->left_img);
+	cv::imshow("right", CTX->right_img);
+	cv::moveWindow("left", 0, 0);
+	cv::moveWindow("right", CTX->left_img.cols, 0);
+	if(CTX->state == MiaContext::ONLINE)
+	process_stereo(CTX->left_img, CTX->right_img, cap_time);
 
 	return TRUE;
 }
@@ -167,32 +192,35 @@ stereo_init()
 	}
 	V4LCaptureParam p = {
 		width: 320, height: 240,
-		fps: 30,
+		fps: 100,
 		pixelformat: V4L2_PIX_FMT_YUYV,
 		record_prefix: NULL,
 		replay_mode: (int)replay_mode,
 	};
 	p.record_prefix = LEFT_CAM_RECORD_PREFIX;
-	STEREO_LEFT_CAM  = new V4LCapture(LEFT_CAM_DEV, p);
+	CTX->left_cam  = new V4LCapture(LEFT_CAM_DEV, p);
 	p.record_prefix = RIGHT_CAM_RECORD_PREFIX;
-	STEREO_RIGHT_CAM = new V4LCapture(RIGHT_CAM_DEV, p);
+	CTX->right_cam = new V4LCapture(RIGHT_CAM_DEV, p);
 
+	CTX->left_cam->start_capturing();
+	CTX->right_cam->start_capturing();
 	main_loop_add_fd (stereo_msg_pipe[0],   stereo_onmsg, NULL, G_PRIORITY_HIGH);
 	if(!replay_mode){
-		main_loop_add_fd (STEREO_LEFT_CAM->fd, stereo_onread, STEREO_LEFT_CAM, G_PRIORITY_HIGH);
-		main_loop_add_fd (STEREO_RIGHT_CAM->fd, stereo_onread, STEREO_RIGHT_CAM, G_PRIORITY_HIGH);
+		main_loop_add_fd (CTX->left_cam->fd, stereo_onread, CTX->left_cam, G_PRIORITY_HIGH);
+		main_loop_add_fd (CTX->right_cam->fd, stereo_onread, CTX->right_cam, G_PRIORITY_HIGH);
 	}
 }
 
 static void 
 stereo_destroy()
 {
-	delete STEREO_LEFT_CAM;
-	delete STEREO_RIGHT_CAM;
+	delete CTX->left_cam;
+	delete CTX->right_cam;
 	g_async_queue_unref(STEREO_MSG_Q);
 }
 
 
+int hd_count = 0;
 /* HD Video CallBacks
  *
  */
@@ -206,15 +234,18 @@ hdvideo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 	struct v4l2_buffer buf;
 	int ret;
 
-	ret = HD_CAM->read_frame(&frame, &buf);
+	ret = CTX->hd_cam->read_frame(&frame, &buf);
 	if(ret == 0)
 		return FALSE;
-	HD_DECODER->read(frame, buf.bytesused);
+	if(CTX->state == MiaContext::CALIB_STEREO)
+		return TRUE;
+	CTX->hd_decoder->read(frame, buf.bytesused);
 
 	while(1){
-		AVFrame* dframe = HD_DECODER->decode();
+		AVFrame* dframe = CTX->hd_decoder->decode();
 		if(!dframe) break;
 		cv::Mat m = avframe_to_cvmat(dframe);
+		imshow("hd", m);
 	}
 
 	return TRUE;
@@ -240,20 +271,21 @@ hdvideo_init()
 		record_prefix: HD_CAM_RECORD_PREFIX,
 		replay_mode: (int)replay_mode,
 	};
-	HD_CAM = new V4LCapture(HD_CAM_DEV, p);
-	HD_DECODER = new FFStreamDecoder("h264");
+	CTX->hd_cam = new V4LCapture(HD_CAM_DEV, p);
+	CTX->hd_decoder = new FFStreamDecoder("h264");
 	//HD_CAM->set_h264_video_profile();
 
 	main_loop_add_fd (hdvideo_msg_pipe[0],  hdvideo_onmsg, NULL, G_PRIORITY_HIGH);
+	CTX->hd_cam->start_capturing();
 	if(!replay_mode){
-		main_loop_add_fd (HD_CAM->fd, hdvideo_onread, NULL, G_PRIORITY_HIGH);
+		main_loop_add_fd (CTX->hd_cam->fd, hdvideo_onread, NULL, G_PRIORITY_HIGH);
 	}
 }
 
 static void
 hdvideo_destroy()
 {
-	delete HD_CAM;
+	delete CTX->hd_cam;
 	g_async_queue_unref(HDVIDEO_MSG_Q);
 }
 
@@ -286,9 +318,9 @@ replay_timeout(gpointer data)
 	V4LCapture *min_cap = NULL;
 
 	V4LCapture *caps[] = {
-		STEREO_LEFT_CAM,
-		STEREO_RIGHT_CAM,
-		HD_CAM };
+		CTX->left_cam,
+		CTX->right_cam,
+		CTX->hd_cam };
 	GIOFunc callbacks[] = {
 		stereo_onread,
 		stereo_onread,
@@ -338,13 +370,18 @@ int main(int argc, char **argv)
 	av_register_all();
 	av_log_set_level(AV_LOG_DEBUG);
 
+	CTX = new MiaContext();
+	CTX->state = MiaContext::ONLINE;
 	replay_mode = argc<2;
-	LEFT_CAM_DEV  = "/dev/video1";
-	RIGHT_CAM_DEV = "/dev/video0";
+	LEFT_CAM_DEV  = "/dev/video0";
+	RIGHT_CAM_DEV = "/dev/video1";
 	HD_CAM_DEV = "/dev/video2";
 //	LEFT_CAM_RECORD_PREFIX = "data/rec_left";
 //	RIGHT_CAM_RECORD_PREFIX = "data/rec_right";
 	HD_CAM_RECORD_PREFIX = "data/rec_hd";
+
+	INTRINSICS_PATH= "data/intrinsics.yml";
+	CTX->intrinsics_path = INTRINSICS_PATH;
 
 	GMainLoop* main_loop = NULL;
 	main_loop = g_main_loop_new (NULL, FALSE);

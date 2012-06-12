@@ -2,10 +2,12 @@
 *.log
 *~
 *.o
-.gdbhistory
+.gdb_history
 data.h264
 data.offset
 cap
 tags
 src/mia
 src/data
+old
+*.swp
