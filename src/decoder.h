@@ -1,3 +1,6 @@
+#ifndef __DECODER_H__
+#define __DECODER_H__
+
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -29,3 +32,5 @@ public:
     AVInputFormat *iformat;
     AVDictionary *options;
 };
+
+#endif

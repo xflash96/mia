@@ -1,5 +1,8 @@
+#ifndef __CAP_H__
+#define __CAP_H__
+
 #ifdef __APPLE__
-//	#include "apple/videodev2.h"
+	#include "apple/videodev2.h"
 #else
 	#include <linux/videodev2.h>
 #endif
@@ -59,3 +62,4 @@ public:
 	int load_frame(void **data, struct v4l2_buffer *buf);
 };
 
+#endif

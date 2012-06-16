@@ -1,10 +1,9 @@
 #include "stereo.h"
 
-using namespace std;
 using namespace cv;
 
 int ctr = 0;
-void process_stereo(cv::Mat left_img, cv::Mat right_img, int64_t cap_time)
+void process_stereo(Mat left_img, Mat right_img, int64_t cap_time)
 {
 	vector<KeyPoint> left_keys, right_keys;
 	Mat left_descrs, right_descrs;
@@ -30,4 +29,18 @@ void process_stereo(cv::Mat left_img, cv::Mat right_img, int64_t cap_time)
 	imshow("left_feat", left_img);
 	imshow("right_feat", right_img);
 //	waitKey(1);
+}
+
+void Stereo::triangulatePoints(Pts2D left_pts, Pts2D right_pts, Pts3D &dst_pts)
+{
+	Mat pts_4d;
+	Pts2D left_udpts, right_udpts;
+
+	left.undistortPoints(left_pts, left_udpts);
+	right.undistortPoints(right_pts, right_udpts);
+//	right_udpts = right_udpts.reshape(1, right_udpts.cols).t();
+//	left_udpts = left_udpts.reshape(1, left_udpts.cols).t();
+
+	cv::triangulatePoints(left.proj, right.proj, left_udpts, right_udpts, pts_4d);
+	cv::convertPointsFromHomogeneous(pts_4d.t(), dst_pts);
 }

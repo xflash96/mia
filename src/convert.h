@@ -1,3 +1,6 @@
+#ifndef __CONVERT_H__
+#define __CONVERT_H__
+
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -8,3 +11,5 @@ cv::Mat raw_to_cvmat(uint8_t *data, int width, int height, enum PixelFormat form
 cv::Mat avframe_to_cvmat(AVFrame *frame);
 int64_t timespec_to_ns(struct timespec *t);
 int64_t timeval_to_ns(struct timeval *t);
+
+#endif

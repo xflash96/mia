@@ -28,7 +28,7 @@ CXX := g++
 
 PROGRAMS := mia
 
-mia: mia.o cap.o decoder.o convert.o stereo.o calib.o
+mia: mia.o cap.o decoder.o convert.o stereo.o calib.o cam.o
 	$(CXX) $^ -o $@ $(LDFLAGS)
 
 .PHONY: all clean install

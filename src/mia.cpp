@@ -13,27 +13,11 @@
 #include <glib.h>
 #include <gtk/gtk.h>
 
+#include "stereo.h"
 #include "cap.h"
 #include "decoder.h"
 #include "convert.h"
-#include "stereo.h"
 #include "calib.h"
-
-//static gint IO_PRIORITY = G_PRIORITY_HIGH;
-
-const char *LEFT_CAM_DEV;
-const char *RIGHT_CAM_DEV; 
-const char *HD_CAM_DEV;
-
-const char *LEFT_CAM_RECORD_PREFIX;
-const char *RIGHT_CAM_RECORD_PREFIX;
-const char *HD_CAM_RECORD_PREFIX;
-
-const char *INTRINSICS_PATH;
-
-volatile int64_t process_start_time = INT64_MAX;
-volatile int64_t stereo_prev_cap_time;
-static bool replay_mode = false;
 
 class MiaContext
 {
@@ -52,12 +36,31 @@ public:
 	FFStreamDecoder *hd_decoder;
 
 	cv::Mat left_img, right_img;
-	cv::Mat hdvideo_img;
+	cv::Mat hd_img;
 
-	CamParams left_camp, right_camp, hd_camp;
+	Stereo stereo;
+	Cam hd;
 
 	const char *intrinsics_path;
+	const char *extrinsics_path;
 } *CTX;
+
+//static gint IO_PRIORITY = G_PRIORITY_HIGH;
+
+const char *LEFT_CAM_DEV;
+const char *RIGHT_CAM_DEV; 
+const char *HD_CAM_DEV;
+
+const char *LEFT_CAM_RECORD_PREFIX;
+const char *RIGHT_CAM_RECORD_PREFIX;
+const char *HD_CAM_RECORD_PREFIX;
+
+const char *INTRINSICS_PATH;
+const char *EXTRINSICS_PATH;
+
+volatile int64_t process_start_time = INT64_MAX;
+volatile int64_t stereo_prev_cap_time;
+static bool replay_mode = false;
 
 GAsyncQueue *STEREO_MSG_Q, *HDVIDEO_MSG_Q, *UI_MSG_Q;
 int stereo_msg_pipe[2], hdvideo_msg_pipe[2], ui_msg_pipe[2];
@@ -135,16 +138,6 @@ stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 		// frame matched, process pair
 		STEREO_WAIT_PAIR = 0;
 	}
-#if 0
-	char name[100];
-	sprintf(name, "%03d.pgm", total_count);
-	FILE *f = fopen(name, "w");
-	fprintf(f, "P5 %d %d 255\n", cap->param.width, cap->param.height);
-	fwrite(frame, 1, cap->param.width*cap->param.height, f);
-	fclose(f);
-	return TRUE;
-#endif
-	return TRUE;
 
 	// conversion and save
 	cv::Mat m = raw_to_cvmat(frame,
@@ -171,8 +164,10 @@ stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 	cv::imshow("right", CTX->right_img);
 	cv::moveWindow("left", 0, 0);
 	cv::moveWindow("right", CTX->left_img.cols, 0);
-	if(CTX->state == MiaContext::ONLINE)
-	process_stereo(CTX->left_img, CTX->right_img, cap_time);
+//	if(matched_count%100==0)
+//	calib_cameras_poses(CTX->left_img, CTX->right_img, CTX->hd_img);
+	//if(matched_count%2==0)
+	//process_stereo(CTX->left_img, CTX->right_img, cap_time);
 
 	return TRUE;
 }
@@ -219,6 +214,21 @@ stereo_destroy()
 	g_async_queue_unref(STEREO_MSG_Q);
 }
 
+static void
+load_calib_params(MiaContext *CTX)
+{
+	cv::FileStorage fs;
+	fs = cv::FileStorage(CTX->intrinsics_path, cv::FileStorage::READ);
+	CTX->stereo.left.load_intr(fs, "left_");
+	CTX->stereo.right.load_intr(fs, "right_");
+	CTX->hd.load_intr(fs, "hd_");
+	fs.release();
+	fs = cv::FileStorage(CTX->extrinsics_path, cv::FileStorage::READ);
+	CTX->stereo.left.load_extr(fs, "left_");
+	CTX->stereo.right.load_extr(fs, "right_");
+	CTX->hd.load_extr(fs, "hd_");
+	fs.release();
+}
 
 int hd_count = 0;
 /* HD Video CallBacks
@@ -237,8 +247,6 @@ hdvideo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 	ret = CTX->hd_cam->read_frame(&frame, &buf);
 	if(ret == 0)
 		return FALSE;
-	if(CTX->state == MiaContext::CALIB_STEREO)
-		return TRUE;
 	CTX->hd_decoder->read(frame, buf.bytesused);
 
 	while(1){
@@ -246,6 +254,7 @@ hdvideo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 		if(!dframe) break;
 		cv::Mat m = avframe_to_cvmat(dframe);
 		imshow("hd", m);
+		CTX->hd_img = m;
 	}
 
 	return TRUE;
@@ -371,7 +380,6 @@ int main(int argc, char **argv)
 	av_log_set_level(AV_LOG_DEBUG);
 
 	CTX = new MiaContext();
-	CTX->state = MiaContext::ONLINE;
 	replay_mode = argc<2;
 	LEFT_CAM_DEV  = "/dev/video0";
 	RIGHT_CAM_DEV = "/dev/video1";
@@ -381,7 +389,9 @@ int main(int argc, char **argv)
 	HD_CAM_RECORD_PREFIX = "data/rec_hd";
 
 	INTRINSICS_PATH= "data/intrinsics.yml";
+	EXTRINSICS_PATH = "data/extrinsics.yml";
 	CTX->intrinsics_path = INTRINSICS_PATH;
+	CTX->extrinsics_path = EXTRINSICS_PATH;
 
 	GMainLoop* main_loop = NULL;
 	main_loop = g_main_loop_new (NULL, FALSE);
@@ -392,6 +402,7 @@ int main(int argc, char **argv)
 	stereo_init();
 	hdvideo_init();
 	ui_init();
+	load_calib_params(CTX);
 
 	signal(SIGINT, sigint_handler);
 	signal(SIGTERM, sigint_handler);
