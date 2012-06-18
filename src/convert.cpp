@@ -2,6 +2,7 @@ extern "C"{
 #include <libswscale/swscale.h>
 #include <libavutil/pixdesc.h>
 }
+#include <sys/time.h>
 #include "convert.h"
 
 cv::Mat avframe_to_cvmat(AVFrame *frame)
@@ -42,26 +43,6 @@ cv::Mat raw_to_cvmat(uint8_t *data, int width, int height, enum PixelFormat pixe
 	return avframe_to_cvmat(&avframe);
 }
 
-#ifdef __APPLE__
-#include <sys/time.h>
-int clock_gettime(clockid_t clock_id, struct timespec *tp)
-{
-    struct timeval tv;
-    int ret = gettimeofday( &tv, NULL );
-    tp->tv_sec = tv.tv_sec;
-    tp->tv_nsec = tv.tv_usec*1000L;
-    return ret;
-}
-#endif
-
-int64_t time_now_ns()
-{
-	struct timespec tspec;
-	int r = clock_gettime(CLOCK_MONOTONIC, &tspec);
-	assert(r==0);
-	return timespec_to_ns(&tspec);
-}
-
 int64_t timespec_to_ns(struct timespec *t)
 {
 	return t->tv_sec*1000000000L + t->tv_nsec;
@@ -71,6 +52,21 @@ int64_t timeval_to_ns(struct timeval *t)
 {
 	return t->tv_sec*1000000000L + t->tv_usec*1000;
 }
+
+int64_t time_now_ns()
+{
+#ifdef __APPLE__
+    struct timeval tv;
+    int ret = gettimeofday( &tv, NULL );
+    return timeval_to_ns(&tv);
+#else
+    struct timespec tspec;
+    int r = clock_gettime(CLOCK_MONOTONIC, &tspec);
+    assert(r==0);
+    return timespec_to_ns(&tspec);
+#endif
+}
+
 #if 0
 
 

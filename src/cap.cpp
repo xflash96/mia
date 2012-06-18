@@ -12,7 +12,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
-#include <malloc.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/mman.h>
