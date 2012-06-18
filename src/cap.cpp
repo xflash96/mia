@@ -51,9 +51,7 @@ V4LCapture::V4LCapture(const char *dev_name, struct V4LCaptureParam param)
 	this->param = param;
 
 	if(!param.replay_mode){
-		struct timespec t;
-		clock_gettime(CLOCK_MONOTONIC, &t);
-		start_time = timespec_to_ns(&t);
+		start_time = time_now_ns();
 	}
 	// open records
 	if(param.record_prefix!=NULL){

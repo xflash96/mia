@@ -87,14 +87,6 @@ void signal_pipe(int *fds)
 	write(fds[1], "1", 1);
 }
 
-int64_t time_now_ns()
-{
-	struct timespec tspec;
-	int r = clock_gettime(CLOCK_MONOTONIC, &tspec);
-	assert(r==0);
-	return timespec_to_ns(&tspec);
-}
-
 int matched_count;
 int total_count;
 int STEREO_WAIT_PAIR;
