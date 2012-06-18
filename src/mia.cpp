@@ -164,10 +164,14 @@ stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 	cv::imshow("right", CTX->right_img);
 	cv::moveWindow("left", 0, 0);
 	cv::moveWindow("right", CTX->left_img.cols, 0);
-//	if(matched_count%100==0)
-//	calib_cameras_poses(CTX->left_img, CTX->right_img, CTX->hd_img);
-	//if(matched_count%2==0)
-	//process_stereo(CTX->left_img, CTX->right_img, cap_time);
+#if 1
+	if(matched_count%100==0)
+	calib_cameras_poses(CTX->left_img, CTX->right_img, CTX->hd_img,
+			CTX->stereo, CTX->hd);
+#else
+	if(matched_count%2==0)
+	process_stereo(CTX->left_img, CTX->right_img, CTX->stereo, cap_time);
+#endif
 
 	return TRUE;
 }
@@ -197,10 +201,10 @@ stereo_init()
 	p.record_prefix = RIGHT_CAM_RECORD_PREFIX;
 	CTX->right_cam = new V4LCapture(RIGHT_CAM_DEV, p);
 
-	CTX->left_cam->start_capturing();
-	CTX->right_cam->start_capturing();
 	main_loop_add_fd (stereo_msg_pipe[0],   stereo_onmsg, NULL, G_PRIORITY_HIGH);
 	if(!replay_mode){
+		CTX->left_cam->start_capturing();
+		CTX->right_cam->start_capturing();
 		main_loop_add_fd (CTX->left_cam->fd, stereo_onread, CTX->left_cam, G_PRIORITY_HIGH);
 		main_loop_add_fd (CTX->right_cam->fd, stereo_onread, CTX->right_cam, G_PRIORITY_HIGH);
 	}
@@ -285,8 +289,8 @@ hdvideo_init()
 	//HD_CAM->set_h264_video_profile();
 
 	main_loop_add_fd (hdvideo_msg_pipe[0],  hdvideo_onmsg, NULL, G_PRIORITY_HIGH);
-	CTX->hd_cam->start_capturing();
 	if(!replay_mode){
+		CTX->hd_cam->start_capturing();
 		main_loop_add_fd (CTX->hd_cam->fd, hdvideo_onread, NULL, G_PRIORITY_HIGH);
 	}
 }
@@ -353,7 +357,7 @@ replay_timeout(gpointer data)
 	}
 
 	int64_t replay_time = time_now_ns() + start_time_diff;
-	if(min_time < replay_time){
+	if(min_time < replay_time || true){
 		return min_callback(NULL, G_IO_IN, min_cap);
 	}else{
 		return TRUE;
@@ -384,12 +388,12 @@ int main(int argc, char **argv)
 	LEFT_CAM_DEV  = "/dev/video0";
 	RIGHT_CAM_DEV = "/dev/video1";
 	HD_CAM_DEV = "/dev/video2";
-//	LEFT_CAM_RECORD_PREFIX = "data/rec_left";
-//	RIGHT_CAM_RECORD_PREFIX = "data/rec_right";
+	//LEFT_CAM_RECORD_PREFIX = "data/rec_left";
+	//RIGHT_CAM_RECORD_PREFIX = "data/rec_right";
 	HD_CAM_RECORD_PREFIX = "data/rec_hd";
 
-	INTRINSICS_PATH= "data/intrinsics.yml";
-	EXTRINSICS_PATH = "data/extrinsics.yml";
+	INTRINSICS_PATH= "intrinsics.yml";
+	EXTRINSICS_PATH = "extrinsics.yml";
 	CTX->intrinsics_path = INTRINSICS_PATH;
 	CTX->extrinsics_path = EXTRINSICS_PATH;
 

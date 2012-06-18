@@ -46,7 +46,7 @@ void Cam::load_extr(FileStorage &fs, const char *prefix)
 	if(prefix==NULL)
 		prefix = "";
 	sprintf(name, "%sproj", prefix);
-	fs[name] >> cam_mat;
+	fs[name] >> proj;
 	sprintf(name, "%srvec", prefix);
 	fs[name] >> rvec;
 	sprintf(name, "%stvec", prefix);

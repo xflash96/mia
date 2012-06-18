@@ -5,7 +5,7 @@ left_cam_mat: !!opencv-matrix
    dt: d
    data: [ 2.6977512644548995e+02, 0., 1.5104590434618939e+02, 0.,
        2.7019758700896415e+02, 1.2423251698070138e+02, 0., 0., 1. ]
-left_distort: !!opencv-matrix
+left_dist_coeff: !!opencv-matrix
    rows: 1
    cols: 5
    dt: d
@@ -18,7 +18,7 @@ right_cam_mat: !!opencv-matrix
    dt: d
    data: [ 2.7069841011903179e+02, 0., 1.5382900000715853e+02, 0.,
        2.7107299066201278e+02, 1.2143248619985003e+02, 0., 0., 1. ]
-right_distort: !!opencv-matrix
+right_dist_coeff: !!opencv-matrix
    rows: 1
    cols: 5
    dt: d
@@ -63,7 +63,7 @@ hd_cam_mat: !!opencv-matrix
    dt: d
    data: [ 7.9330909661600447e+02, 0., 3.9975912310390424e+02, 0.,
        7.9357079248867387e+02, 2.9965315141961713e+02, 0., 0., 1. ]
-hd_distort: !!opencv-matrix
+hd_dist_coeff: !!opencv-matrix
    rows: 1
    cols: 5
    dt: d

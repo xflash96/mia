@@ -14,6 +14,6 @@ public:
 	Cam left, right;
 	void triangulatePoints(Pts2D left_pts, Pts2D right_pts, Pts3D &dst_pts);
 };
-void process_stereo(int64_t cap_time);
+void process_stereo(cv::Mat left_img, cv::Mat right_img, Stereo stereo, int64_t cap_time);
 
 #endif

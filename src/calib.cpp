@@ -225,7 +225,7 @@ bool calib_cameras_poses(Mat left_img, Mat right_img, Mat hd_img,
 	stereo.right.undistortPoints(right_corners, right_udcorners);
 
 	stereo.triangulatePoints(left_udcorners, right_udcorners, chessboard_3d);
-	cerr << chessboard_3d << endl;
+//	cerr << chessboard_3d << endl;
 
 	double err = chessboard_neighbor_error(chessboard_3d, chessboard_pattern);
 	fprintf(stderr, "total err = %lf\n", err);

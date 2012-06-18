@@ -3,7 +3,7 @@
 using namespace cv;
 
 int ctr = 0;
-void process_stereo(Mat left_img, Mat right_img, int64_t cap_time)
+void process_stereo(cv::Mat left_img, cv::Mat right_img, Stereo stereo, int64_t cap_time)
 {
 	vector<KeyPoint> left_keys, right_keys;
 	Mat left_descrs, right_descrs;
@@ -14,6 +14,8 @@ void process_stereo(Mat left_img, Mat right_img, int64_t cap_time)
 	static ORB right_orb(n_feature, 1.2f, 1, 31, 0, 2, ORB::HARRIS_SCORE, 31);
 	left_orb(left_img, Mat(), left_keys, left_descrs, false);
 	right_orb(right_img, Mat(), right_keys, right_descrs, false);
+
+	FlannBasedMatcher matcher;
 #else
 
 	Mat new_left, new_right;
@@ -34,13 +36,13 @@ void process_stereo(Mat left_img, Mat right_img, int64_t cap_time)
 void Stereo::triangulatePoints(Pts2D left_pts, Pts2D right_pts, Pts3D &dst_pts)
 {
 	Mat pts_4d;
-	Pts2D left_udpts, right_udpts;
+	Mat left_mat, right_mat;
 
-	left.undistortPoints(left_pts, left_udpts);
-	right.undistortPoints(right_pts, right_udpts);
-//	right_udpts = right_udpts.reshape(1, right_udpts.cols).t();
-//	left_udpts = left_udpts.reshape(1, left_udpts.cols).t();
+	left_mat = Mat(left_pts);
+	right_mat = Mat(right_pts);
+	left_mat = left_mat.reshape(1, left_pts.size()).t();
+	right_mat= right_mat.reshape(1, right_pts.size()).t();
 
-	cv::triangulatePoints(left.proj, right.proj, left_udpts, right_udpts, pts_4d);
+	cv::triangulatePoints(left.proj, right.proj, left_mat, right_mat, pts_4d);
 	cv::convertPointsFromHomogeneous(pts_4d.t(), dst_pts);
 }
