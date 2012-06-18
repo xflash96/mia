@@ -156,7 +156,7 @@ stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 	cv::imshow("right", CTX->right_img);
 	cv::moveWindow("left", 0, 0);
 	cv::moveWindow("right", CTX->left_img.cols, 0);
-#if 1
+#if 0
 	if(matched_count%100==0)
 	calib_cameras_poses(CTX->left_img, CTX->right_img, CTX->hd_img,
 			CTX->stereo, CTX->hd);
@@ -380,8 +380,8 @@ int main(int argc, char **argv)
 	LEFT_CAM_DEV  = "/dev/video0";
 	RIGHT_CAM_DEV = "/dev/video1";
 	HD_CAM_DEV = "/dev/video2";
-	//LEFT_CAM_RECORD_PREFIX = "data/rec_left";
-	//RIGHT_CAM_RECORD_PREFIX = "data/rec_right";
+	LEFT_CAM_RECORD_PREFIX = "data/rec_left";
+	RIGHT_CAM_RECORD_PREFIX = "data/rec_right";
 	HD_CAM_RECORD_PREFIX = "data/rec_hd";
 
 	INTRINSICS_PATH= "intrinsics.yml";
