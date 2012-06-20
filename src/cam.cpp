@@ -64,3 +64,21 @@ void Cam::dump_extr(FileStorage &fs, const char *prefix)
 	sprintf(name, "%stvec", prefix);
 	fs << name << tvec;
 }
+
+void Pts3D_to_Mat(Pts3D &pts, Mat &m)
+{
+	m = Mat(pts);
+	m = m.reshape(1, pts.size()).t();
+}
+
+void Mat_to_Pts3D(Mat &m, Pts3D &pts)
+{
+	pts.clear();
+	for(int i=0; i<m.cols; i++){
+		Point3d p;
+		p.x = m.at<float>(0, i);
+		p.y = m.at<float>(1, i);
+		p.z = m.at<float>(2, i);
+		pts.push_back(p);
+	}
+}

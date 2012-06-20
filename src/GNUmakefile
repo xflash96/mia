@@ -21,14 +21,17 @@ LDFLAGS := -O3 \
 	$(GTK2_LDFLAGS) \
 	$(OPENCV_LDFLAGS) \
 	$(FFMPEG_LDFLAGS) \
-	-lrt -lm
+	-lm
 
 CXXFLAGS := $(CFLAGS) -D__STDC_CONSTANT_MACROS
 CXX := g++
 
-PROGRAMS := mia
+PROGRAMS := test
 
 mia: mia.o cap.o decoder.o convert.o stereo.o calib.o cam.o
+	$(CXX) $^ -o $@ $(LDFLAGS)
+
+test: test.o cam.o
 	$(CXX) $^ -o $@ $(LDFLAGS)
 
 .PHONY: all clean install

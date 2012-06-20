@@ -23,4 +23,6 @@ public:
 	void dump_extr(cv::FileStorage &fs, const char *prefix=NULL);
 };
 
+void Pts3D_to_Mat(Pts3D &pts, cv::Mat &m);
+void Mat_to_Pts3D(cv::Mat &m, Pts3D &pts);
 #endif
