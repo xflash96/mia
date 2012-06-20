@@ -379,9 +379,9 @@ int main(int argc, char **argv)
 	LEFT_CAM_DEV  = "/dev/video0";
 	RIGHT_CAM_DEV = "/dev/video1";
 	HD_CAM_DEV = "/dev/video2";
-	LEFT_CAM_RECORD_PREFIX = "../data4/rec_left";
-	RIGHT_CAM_RECORD_PREFIX = "../data4/rec_right";
-	HD_CAM_RECORD_PREFIX = "../data4/rec_hd";
+	LEFT_CAM_RECORD_PREFIX = "data/rec_left";
+	RIGHT_CAM_RECORD_PREFIX = "data/rec_right";
+	HD_CAM_RECORD_PREFIX = "data/rec_hd";
 
 	INTRINSICS_PATH= "intrinsics.yml";
 	EXTRINSICS_PATH = "extrinsics.yml";
