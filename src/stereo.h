@@ -12,8 +12,15 @@ class Stereo
 {
 public:
 	Cam left, right;
+	cv::Mat F;
+	cv::ORB *left_orb, *right_orb;
+	cv::BFMatcher *matcher;
+
+	Stereo();
+	~Stereo();
 	void triangulatePoints(Pts2D left_pts, Pts2D right_pts, Pts3D &dst_pts);
+	void load_F(cv::FileStorage &fs);
+	bool get_feat_pts(cv::Mat &left_img, cv::Mat &right_img, Pts3D &feat_pts, cv::Mat &left_descr, cv::Mat &right_descr);
 };
-void process_stereo(cv::Mat left_img, cv::Mat right_img, Stereo stereo, int64_t cap_time);
 
 #endif

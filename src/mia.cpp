@@ -161,7 +161,9 @@ stereo_onread(GIOChannel *source, GIOCondition condition, gpointer data)
 	calib_cameras_poses(CTX->left_img, CTX->right_img, CTX->hd_img,
 			CTX->stereo, CTX->hd);
 #else
-	process_stereo(CTX->left_img, CTX->right_img, CTX->stereo, cap_time);
+	Pts3D feat_pts;
+	cv::Mat left_descr, right_descr;
+	CTX->stereo.get_feat_pts(CTX->left_img, CTX->right_img, feat_pts, left_descr, right_descr);
 #endif
 
 	return TRUE;
@@ -217,6 +219,7 @@ load_calib_params(MiaContext *CTX)
 	CTX->stereo.left.load_intr(fs, "left_");
 	CTX->stereo.right.load_intr(fs, "right_");
 	CTX->hd.load_intr(fs, "hd_");
+	CTX->stereo.load_F(fs);
 	fs.release();
 	fs = cv::FileStorage(CTX->extrinsics_path, cv::FileStorage::READ);
 	CTX->stereo.left.load_extr(fs, "left_");
