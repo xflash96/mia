@@ -25,6 +25,7 @@ void SLAM::initial()
 	H = Mat::zeros( 3, X_dim+3*MAX_F, CV_32FC1 ) ;
 	y = Mat::zeros( 3, 1, CV_32FC1 ) ;
 	r = Mat::zeros( 3, 1, CV_32FC1 ) ;
+	R_inv = Mat::zeros( 3, 3, CV_32FC1 ) ;
 
 	//for H_sigma_H
 	H_y = Mat::zeros( 3, X_dim+3, CV_32FC1 ) ;
@@ -153,6 +154,13 @@ void SLAM::generate_domega( Mat &domega, float ccc, float sss, float scc, float 
 	domega.at<float>(2, 0) = -ssc+ccs, domega.at<float>(2, 1) = ccc-sss, domega.at<float>(2, 2) = -css+scc ;
 	domega.at<float>(3, 0) = -scs-css, domega.at<float>(3, 1) = -css-scc, domega.at<float>(3, 2) = ccc+sss ;
 	domega = 0.5*domega ;
+}
+
+void SLAM::generateR( cv::Mat &R, float q0, float q1, float q2, float q3 )
+{
+	R.at<float>(0,0) = 1-2*(q2*q2+q3*q3), R.at<float>(0,1) = 2*(q1*q2-q0*q3), R.at<float>(0,2) = 2*(q0*q2+q1*q3) ;
+	R.at<float>(1,0) = 2*(q1*q2+q0*q3), R.at<float>(1,1) = 1-2*(q1*q1+q3*q3), R.at<float>(1,2) = 2*(q2*q3-q0*q1) ;
+	R.at<float>(2,0) = 2*(q1*q3-q0*q2), R.at<float>(2,1) = 2*(q0*q1+q2*q3), R.at<float>(2,2) = 1-2*(q1*q1+q2*q2) ;
 }
 
 void SLAM::generate_HsigmaH( cv::Mat &H_sigma_H, int idx, cv::Mat &R_inv, cv::Mat &nR_inv, cv::Mat &sigma )
