@@ -31,7 +31,7 @@ PROGRAMS := mia
 mia: mia.o cap.o decoder.o convert.o stereo.o calib.o cam.o
 	$(CXX) $^ -o $@ $(LDFLAGS)
 
-test: test.o cam.o
+test: test.o cam.o slam.o
 	$(CXX) $^ -o $@ $(LDFLAGS)
 
 .PHONY: all clean install
