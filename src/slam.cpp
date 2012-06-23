@@ -85,7 +85,7 @@ void SLAM::predict( int64_t timestamp_ns )
 	generate_domega( domega, ccc, sss, scc, css, csc, scs, ccs, ssc ) ;
 	
 	for( int i=0 ; i<3 ; i++ )
-		A.at<float>( i, i+6 ) = dt ; 
+		A.at<float>( i, i+7 ) = dt ; 
 	for( int i=0 ; i<4 ; i++ )
 		for( int j=0 ; j<4 ; j++ )
 			A.at<float>( i+3, j+3 ) = dqw.at<float>(i, j) ;
@@ -138,6 +138,8 @@ void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRi
 	for( int _idx=0 ; _idx<matchList.size() ; _idx++ )	
 	{
 		generateR( R_inv, X.at<float>(3,0), X.at<float>(4,0), X.at<float>(5,0), X.at<float>(6,0) ) ;
+		//cerr << "*******R" << endl ;
+		//cerr << R_inv << endl ;
 		R_inv = R_inv.t() ;
 		nR_inv = (-1)*R_inv ;
 		idx = matchList[ _idx ] ;
@@ -154,6 +156,8 @@ void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRi
 		generate_HsigmaH( H_sigma_H, idx, R_inv, nR_inv, sigma ) ;
 		generate_sigmaH( sigma_H, idx, sigma, R_inv ) ;
 		//K = sigma*H*( H*sigma*H+R )^(-1) 
+		//cerr << "H_sigma_H" << endl ;
+		//cerr << H_sigma_H << endl ;
 		K = sigma_H*( H_sigma_H+R ).inv() ;
 		//generate HX
 		generate_HX( HX, idx, R_inv ) ;
@@ -202,7 +206,7 @@ void SLAM::generate_dq( Mat &dq, float w, float x, float y, float z )
 	dq.at<float>(0, 0) = w, dq.at<float>(0, 1) = -x, dq.at<float>(0, 2) = -y, dq.at<float>(0, 3) = -z ;
 	dq.at<float>(1, 0) = x, dq.at<float>(1, 1) = w, dq.at<float>(1, 2) = -z, dq.at<float>(1, 3) = y ;
 	dq.at<float>(2, 0) = y, dq.at<float>(2, 1) = z, dq.at<float>(2, 2) = w, dq.at<float>(2, 3) = -x ;
-	dq.at<float>(3, 0) = z, dq.at<float>(3, 1) = -y, dq.at<float>(3, 2) = z, dq.at<float>(3, 3) = w ;
+	dq.at<float>(3, 0) = z, dq.at<float>(3, 1) = -y, dq.at<float>(3, 2) = x, dq.at<float>(3, 3) = w ;
 }
 
 void SLAM::generate_domega( Mat &domega, float ccc, float sss, float scc, float css, float csc, float scs, float ccs, float ssc ) 
@@ -248,6 +252,8 @@ void SLAM::generate_HsigmaH( cv::Mat &H_sigma_H, int idx, cv::Mat &R_inv, cv::Ma
 		memcpy( sigma_ry.data+( (3+i)*sigma_ry.cols+3 )*sizeof(float),
 			sigma.data+( (y_pos+i )*sigma.cols + y_pos  )*sizeof(float), 3*sizeof(float) ) ;
 	}
+	//cerr << "Sigma ry" << endl ;
+	//cerr << sigma_ry << endl ;
 	H_sigma_H = H_y*sigma_ry*( H_y.t() ) ;
 }
 
