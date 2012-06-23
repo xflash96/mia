@@ -33,8 +33,8 @@ void SLAM::initial()
 	sigma_r = Mat::zeros( 3, X_dim+3*MAX_F , CV_32FC1 ) ;
 	sigma_y = Mat::zeros( 3, X_dim+3*MAX_F , CV_32FC1 ) ;
 	y_size = 0 ;
-	left_chkList = new bool[ MAX_F ] ;
-	right_chkList = new bool[ MAX_F ] ;
+	left_matchList = new int[ MAX_F ] ;
+	right_matchList = new int[ MAX_F ] ;
 	matcher = new BFMatcher(NORM_HAMMING);
 }
 void SLAM::predict( int64_t timestamp_ns )
@@ -91,15 +91,34 @@ void SLAM::predict( int64_t timestamp_ns )
 
 void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRight, int64_t timestamp_ns)
 {
-	int f_n = descrsLeft.rows ;
+	//int f_n = descrsLeft.rows ;
 	int idx ;
-	vector<int> observeList ;
-	vector<int> matchList ;
+	vector<int> observeList ; //local
+	vector<int> matchList ; //map
 	vector<int> addList ;
 	/*match*/
-	vector<DMatch> matches;
-	matcher->match(descrsLeft, left_chkList, matches);
-	
+	vector<DMatch> matches_left, matches_right;
+	matcher->match(descrsLeft, leftMap, matches_left);
+	matcher->match(descrsRight, rightMap, matches_left);
+	for( int i=0 ; i<y_size ; i++ )
+		left_matchList[i] = right_matchList[i] = -1 ;
+	for( int i=0 ; i<matches_left.size() ; i++ )
+		left_matchList[ matches_left[i].queryIdx ] = matches_left[i].trainIdx ;
+	for( int i=0 ; i<matches_right.size() ; i++ )
+		right_matchList[ matches_right[i].queryIdx ] = matches_right[i].trainIdx ;
+	for( int i=0 ; i<y_size ; i++ )
+		if( left_matchList[i] == right_matchList[i] )
+		{
+			if( left_matchList[i] == -1 )
+				addList.push_back( i ) ;
+			else
+			{
+				observeList.push_back( i ) ;
+				matchList.push_back( left_matchList[i] ) ;
+			}
+		}
+	//memset( left_matchList, 0, sizeof(int)*y_size )  ;
+	//memset( right_matchList, 0, sizeof(int)*y_size )  ;
 
 	/*measure*/
 	for( int _idx=0 ; _idx<matchList.size() ; _idx++ )	
@@ -141,9 +160,12 @@ void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRi
 		idx = addList[i] ;
 		//memcpy( leftMap.data+y_size*leftMap.cols*sizeof(), descrsLeft.data+idx*leftMap.cols*sizeof(), leftMap.cols*sizeof() ) ;
 		//memcpy( rightMap.data+y_size*rightMap.cols*sizeof(), descrsLeft.data+idx*rightMap.cols*sizeof(), rightMap.cols*sizeof() ) ;
-		X.at<float>( X_dim+3*y_size, 1 ) = observedPoints[idx].x ;
-		X.at<float>( X_dim+3*y_size+1, 1 ) = observedPoints[idx].y ;
-		X.at<float>( X_dim+3*y_size+2, 1 ) = observedPoints[idx].z ;
+		y.at<float>(0,0) = observedPoints[idx].x ;
+		y.at<float>(1,0) = observedPoints[idx].y ;
+		y.at<float>(2,0) = observedPoints[idx].z ;
+		/**transform**/
+		//
+		memcpy( X.data+( X_dim+3*y_size )*sizeof(float), y.data, 3*sizeof(float) ) ;
 		y_size++ ;
 	}
 }

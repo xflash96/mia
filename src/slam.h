@@ -25,7 +25,7 @@ private:
 	//cv::DescriptorMatcher *matcher ;
 	cv::BFMatcher *matcher ;
 	int y_size ;
-	bool *left_chkList, *right_chkList ;
+	int *left_matchList, *right_matchList ;
 
 
 	int64_t previous_t ;
