@@ -95,12 +95,8 @@ bool run_camera(Mat x, Mat rvec, Mat v, Mat omega, Mat M, Mat descr, float noise
 	for( int i=0 ; i<8 ; i++ )
 		cerr << slam.X.at<float>( 13+3*i, 0 ) <<  " " << slam.X.at<float>( 13+3*i+1, 0 ) << " " << slam.X.at<float>( 13+3*i+2, 0 ) << endl;
 
-	for( int i=0 ; i<24 ; i++ )
-	{
-		for( int j=0 ; j<24 ; j++ )
-			cerr << slam.sigma.at<float>( 13+i, 13+j ) << " " ;
-		cerr << endl ;
-	}
+	for( int j=13 ; j<13+24 ; j++ )
+		cerr << slam.sigma.at<float>( j, j ) << " " ;
 	return true;
 }
 

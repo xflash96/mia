@@ -62,7 +62,7 @@ void SLAM::predict( int64_t timestamp_ns )
 	float _x, _y, _z, _w ;
 	Mat dqw, dq, domega, tmp ; 
 
-	dt = (timestamp_ns - previous_t)*1e9 ;
+	dt = (timestamp_ns - previous_t)*1e-9 ;
 	theta[0] = X.at<float>( 10, 0 )*dt*0.5 ;
 	theta[1] = X.at<float>( 11, 0 )*dt*0.5 ;
 	theta[2] = X.at<float>( 12, 0 )*dt*0.5 ;
@@ -232,7 +232,6 @@ void SLAM::generate_HsigmaH( cv::Mat &H_sigma_H, int idx, cv::Mat &R_inv, cv::Ma
 		memcpy( H_y.data+( i*H_y.cols+3 )*sizeof(float), 
 			R_inv.data+( i*R_inv.cols )*sizeof(float), R_inv.cols*sizeof(float) ) ;
 	}
-	
 	//sigma_ry
 	for( int i=0 ; i<3 ; i++ )
 	{
