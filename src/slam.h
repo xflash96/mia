@@ -14,10 +14,11 @@ public:
 	void initial( Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRight, int64_t timestamp_ns ) ;
 	void predict(int64_t timestamp_ns);
 	void measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRight, int64_t timestamp_ns);
-private:
+//private:
 	cv::Mat A, X, X_tmp, r, y ;
 	cv::Mat sigma, sigma_tmp ;
-	cv::Mat Q, K, H, I, R_inv, nR_inv ;
+	cv::Mat R, Q ;
+	cv::Mat K, H, I, R_inv, nR_inv ;
 	cv::Mat leftMap, rightMap ;
 	Pts3D posMap ;
 	cv::Mat H_y, sigma_ry, H_sigma_H, sigma_H, HX ;
@@ -26,6 +27,7 @@ private:
 	cv::BFMatcher *matcher ;
 	int y_size ;
 	int *left_matchList, *right_matchList ;
+	float epsilon ;
 
 
 	int64_t previous_t ;

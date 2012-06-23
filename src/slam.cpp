@@ -15,13 +15,18 @@ SLAM::~SLAM()
 void SLAM::initial( Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRight, int64_t timestamp_ns )
 {
 	A = Mat::eye(X_dim, X_dim, CV_32FC1) ;
+	X_tmp = Mat::zeros( X_dim, X_dim, CV_32FC1 ) ;
 	X = Mat::zeros( X_dim+3*MAX_F, 1, CV_32FC1 ) ;
 	X.at<float>(3,0) = 1 ;
 	sigma = Mat::eye( X_dim+3*MAX_F, X_dim+3*MAX_F, CV_32FC1 ) ;
+	sigma_tmp = Mat::eye( X_dim, X_dim, CV_32FC1 ) ;
 	I = Mat::eye( X_dim+3*MAX_F, X_dim+3*MAX_F, CV_32FC1 ) ;
 	H = Mat::zeros( 3, X_dim+3*MAX_F, CV_32FC1 ) ;
 	y = Mat::zeros( 3, 1, CV_32FC1 ) ;
 	r = Mat::zeros( 3, 1, CV_32FC1 ) ;
+	epsilon = 1e-3 ;
+	R = epsilon*( Mat::eye( 3, 3, CV_32FC1 ) ) ;
+
 	R_inv = Mat::zeros( 3, 3, CV_32FC1 ) ;
 	previous_t = timestamp_ns ;
 
@@ -40,7 +45,7 @@ void SLAM::initial( Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsR
 	for( int i=0 ; i<observedPoints.size() ; i++ )
 	{
 		memcpy( leftMap.data+i*32*sizeof(char), descrsLeft.data+i*32*sizeof(char), 32*sizeof(char) ) ;
-		memcpy( rightMap.data+i*32*sizeof(char), descrsRight.data+i*32*sizeof(char), 32*sizeof(char) ) ;
+		memcpy( rightMap.data+i*33*sizeof(char), descrsRight.data+i*32*sizeof(char), 32*sizeof(char) ) ;
 		y.at<float>(0,0) = observedPoints[i].x ;
 		y.at<float>(1,0) = observedPoints[i].y ;
 		y.at<float>(2,0) = observedPoints[i].z ;
@@ -87,7 +92,7 @@ void SLAM::predict( int64_t timestamp_ns )
 	tmp = dt*dq*domega ;
 	for( int i=0 ; i<4 ; i++ )
 		for( int j=0 ; j<3 ; j++ )
-			A.at<float>( i+3, j+10 ) = dqw.at<float>(i, j) ;
+			A.at<float>( i+4, j+10 ) = dqw.at<float>(i, j) ;
 	memcpy( X_tmp.data, X.data, X_dim*sizeof(float) ) ;
 	for( int i=0 ; i<X_dim ; i++ )
 		memcpy( sigma_tmp.data+( sigma_tmp.cols*i*sizeof(float) ), sigma.data+( sigma.cols*i*sizeof(float)), 
@@ -111,7 +116,7 @@ void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRi
 	/*match*/
 	vector<DMatch> matches_left, matches_right;
 	matcher->match(descrsLeft, leftMap, matches_left);
-	matcher->match(descrsRight, rightMap, matches_left);
+	matcher->match(descrsRight, rightMap, matches_right);
 	for( int i=0 ; i<y_size ; i++ )
 		left_matchList[i] = right_matchList[i] = -1 ;
 	for( int i=0 ; i<matches_left.size() ; i++ )
@@ -129,7 +134,6 @@ void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRi
 				matchList.push_back( left_matchList[i] ) ;
 			}
 		}
-
 	/*measure*/
 	for( int _idx=0 ; _idx<matchList.size() ; _idx++ )	
 	{
@@ -150,7 +154,7 @@ void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRi
 		generate_HsigmaH( H_sigma_H, idx, R_inv, nR_inv, sigma ) ;
 		generate_sigmaH( sigma_H, idx, sigma, R_inv ) ;
 		//K = sigma*H*( H*sigma*H+R )^(-1) 
-		K = sigma_H*( H_sigma_H ).inv() ;
+		K = sigma_H*( H_sigma_H+R ).inv() ;
 		//generate HX
 		generate_HX( HX, idx, R_inv ) ;
 		//memcpy( y.data, X.data+(X_dim+3*idx)*sizeof(float), 3*sizeof(float) ) ;

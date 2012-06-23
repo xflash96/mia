@@ -62,6 +62,7 @@ bool run_camera(Mat x, Mat rvec, Mat v, Mat omega, Mat M, Mat descr, float noise
 {
 	srand(0);
 	float dt = 1.f;
+	SLAM slam ;
 	for(int i=0; i<10; i++){
 		x = x + dt*i*v;
 		rvec = rvec + dt*i*omega;
@@ -77,13 +78,28 @@ bool run_camera(Mat x, Mat rvec, Mat v, Mat omega, Mat M, Mat descr, float noise
 			Point3f n;
 			n.x = norm_rand(0, noise);
 			n.y = norm_rand(0, noise);
-			n.z = norm_rand(0, noise);
+			n.z = norm_rand(0, noise*j);
 			Zp[j] += n;
 		}
 
 		//TODO add SLAM here
-		//slam.update(Zp, descr, descr, i*dt);
+		if( i == 0 )
+			slam.initial( Zp, descr, descr, i*dt ) ;
+		else
+		{
+			slam.predict(i*dt);
+			slam.measure(Zp, descr, descr, i*dt);
+		}
 		cerr << Zp << endl;
+	}
+	for( int i=0 ; i<8 ; i++ )
+		cerr << slam.X.at<float>( 13+3*i, 0 ) <<  " " << slam.X.at<float>( 13+3*i+1, 0 ) << " " << slam.X.at<float>( 13+3*i+2, 0 ) << endl;
+
+	for( int i=0 ; i<24 ; i++ )
+	{
+		for( int j=0 ; j<24 ; j++ )
+			cerr << slam.sigma.at<float>( 13+i, 13+j ) << " " ;
+		cerr << endl ;
 	}
 	return true;
 }
