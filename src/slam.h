@@ -11,7 +11,7 @@ class SLAM
 public:
 	SLAM() ; 
 	~SLAM() ;
-	void initial() ;
+	void initial( Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRight, int64_t timestamp_ns ) ;
 	void predict(int64_t timestamp_ns);
 	void measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRight, int64_t timestamp_ns);
 private:
