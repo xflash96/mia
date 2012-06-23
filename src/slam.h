@@ -3,12 +3,14 @@
 #define MAX_F 300 
 #define X_dim 13
 
+#include <opencv2/opencv.hpp>
 #include "cam.h"
 
 class SLAM
 {
 public:
 	SLAM() ; 
+	~SLAM() ;
 	void initial() ;
 	void predict(int64_t timestamp_ns);
 	void measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRight, int64_t timestamp_ns);
@@ -20,6 +22,12 @@ private:
 	Pts3D posMap ;
 	cv::Mat H_y, sigma_ry, H_sigma_H, sigma_H, HX ;
 	cv::Mat sigma_y, sigma_r ;
+	//cv::DescriptorMatcher *matcher ;
+	cv::BFMatcher *matcher ;
+	int y_size ;
+	bool *left_chkList, *right_chkList ;
+
+
 	int64_t previous_t ;
 
 	void generate_dqw( cv::Mat &dqw, float _w, float _x, float _y, float _z ) ;

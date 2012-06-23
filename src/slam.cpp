@@ -32,6 +32,10 @@ void SLAM::initial()
 	sigma_ry = Mat::zeros( X_dim+3, X_dim+3, CV_32FC1 ) ;
 	sigma_r = Mat::zeros( 3, X_dim+3*MAX_F , CV_32FC1 ) ;
 	sigma_y = Mat::zeros( 3, X_dim+3*MAX_F , CV_32FC1 ) ;
+	y_size = 0 ;
+	left_chkList = new bool[ MAX_F ] ;
+	right_chkList = new bool[ MAX_F ] ;
+	matcher = new BFMatcher(NORM_HAMMING);
 }
 void SLAM::predict( int64_t timestamp_ns )
 {
@@ -89,13 +93,15 @@ void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRi
 {
 	int f_n = descrsLeft.rows ;
 	int idx ;
+	vector<int> observeList ;
 	vector<int> matchList ;
 	vector<int> addList ;
 	/*match*/
-
+	vector<DMatch> matches;
+	matcher->match(descrsLeft, left_chkList, matches);
+	
 
 	/*measure*/
-
 	for( int _idx=0 ; _idx<matchList.size() ; _idx++ )	
 	{
 		generateR( R_inv, X.at<float>(3,0), X.at<float>(4,0), X.at<float>(5,0), X.at<float>(6,0) ) ;
@@ -118,14 +124,28 @@ void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRi
 		K = sigma_H*( H_sigma_H ).inv() ;
 		//generate HX
 		generate_HX( HX, idx, R_inv ) ;
-		memcpy( y.data, X.data+(X_dim+3*idx)*sizeof(float), 3*sizeof(float) ) ;
+		//memcpy( y.data, X.data+(X_dim+3*idx)*sizeof(float), 3*sizeof(float) ) ;
+		int j = observeList[_idx] ;
+		y.at<float>(0,0) = observedPoints[j].x ;
+		y.at<float>(1,0) = observedPoints[j].y ;
+		y.at<float>(2,0) = observedPoints[j].z ;
 		X = X + K*( y-HX ) ;
 		sigma = sigma-K*( H*sigma ) ;
 
 		for( int i=0 ; i<3 ; i++ )
 			memset( H.data+( (i*H.cols+X_dim+idx*3 ) *sizeof(float) ), 0, R_inv.cols*sizeof(float)  ) ;
 	}
-	//update
+	//update map
+	for( int i=0 ; i<addList.size() ; i++ )
+	{
+		idx = addList[i] ;
+		//memcpy( leftMap.data+y_size*leftMap.cols*sizeof(), descrsLeft.data+idx*leftMap.cols*sizeof(), leftMap.cols*sizeof() ) ;
+		//memcpy( rightMap.data+y_size*rightMap.cols*sizeof(), descrsLeft.data+idx*rightMap.cols*sizeof(), rightMap.cols*sizeof() ) ;
+		X.at<float>( X_dim+3*y_size, 1 ) = observedPoints[idx].x ;
+		X.at<float>( X_dim+3*y_size+1, 1 ) = observedPoints[idx].y ;
+		X.at<float>( X_dim+3*y_size+2, 1 ) = observedPoints[idx].z ;
+		y_size++ ;
+	}
 }
 
 void SLAM::generate_dqw( Mat &dqw, float _w, float _x, float _y, float _z )
