@@ -20,6 +20,7 @@ public:
 	cv::Mat R, Q ;
 	cv::Mat K, H, I, R_inv, nR_inv, R_dq ;
 	cv::Mat leftMap, rightMap ;
+	cv::Mat dqw, dq, domega ;
 	Pts3D posMap ;
 	cv::Mat H_y, sigma_ry, H_sigma_H, sigma_H, HX ;
 	cv::Mat sigma_y, sigma_r, sigma_Rq ;

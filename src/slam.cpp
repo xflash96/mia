@@ -20,16 +20,20 @@ void SLAM::initial( Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsR
 	X_tmp = Mat::zeros( X_dim, 1, CV_32FC1 ) ;
 	sigma = Mat::eye( X_dim+3*MAX_F, X_dim+3*MAX_F, CV_32FC1 ) ;
 	sigma_tmp = Mat::eye( X_dim, X_dim, CV_32FC1 ) ;
+	Q = Mat::eye( X_dim, X_dim, CV_32FC1 ) ;
 	H = Mat::zeros( 3, X_dim+3*MAX_F, CV_32FC1 ) ;
 	y = Mat::zeros( 3, 1, CV_32FC1 ) ;
 	r = Mat::zeros( 3, 1, CV_32FC1 ) ;
 	q = Mat::zeros( 4, 1, CV_32FC1 ) ;
-	epsilon = 1e-4 ;
+	epsilon = 1e-5 ;
 	R = epsilon*( Mat::eye( 3, 3, CV_32FC1 ) ) ;
 
 	R_inv = Mat::zeros( 3, 3, CV_32FC1 ) ;
 	R_dq = Mat::zeros( 3, 4, CV_32FC1 ) ;
 	previous_t = timestamp_ns ;
+	dqw = Mat::zeros( 4, 4, CV_32FC1 ) ;
+	dq = Mat::zeros( 4, 4, CV_32FC1 ) ;
+	domega = Mat::zeros( 4, 3, CV_32FC1 ) ;
 
 	//for H_sigma_H
 	H_y = Mat::zeros( 3, 3+4+3, CV_32FC1 ) ;
@@ -62,7 +66,7 @@ void SLAM::predict( int64_t timestamp_ns )
 	float ccc, sss, scc, css, csc, scs, ccs, ssc ;
 	float theta[3] ;
 	float _x, _y, _z, _w ;
-	Mat dqw, dq, domega, tmp ; 
+	Mat tmp ; 
 
 	dt = (timestamp_ns - previous_t)*1e-9 ;
 	theta[0] = X.at<float>( 10, 0 )*dt*0.5 ;
@@ -95,6 +99,7 @@ void SLAM::predict( int64_t timestamp_ns )
 	for( int i=0 ; i<4 ; i++ )
 		for( int j=0 ; j<3 ; j++ )
 			A.at<float>( i+3, j+10 ) = tmp.at<float>(i, j) ;
+	cerr << "**************A\n" << A << endl ; 
 	memcpy( X_tmp.data, X.data, X_dim*sizeof(float) ) ;
 	for( int i=0 ; i<X_dim ; i++ )
 		memcpy( sigma_tmp.data+( sigma_tmp.cols*i*sizeof(float) ), sigma.data+( sigma.cols*i*sizeof(float)), 
@@ -108,9 +113,7 @@ void SLAM::predict( int64_t timestamp_ns )
 	X_tmp.at<float>(5,0) = tmp.at<float>(2,0), X_tmp.at<float>(6,0) = tmp.at<float>(3,0) ;
 	
 	
-	sigma_tmp = A*sigma_tmp*A.t()  ;
-	//cerr << "************A\n" ;
-	//cerr << A << endl ;
+	sigma_tmp = A*sigma_tmp*A.t() + epsilon*Q  ;
 
 	memcpy( X.data, X_tmp.data, X_dim*sizeof(float) ) ;
 	for( int i=0 ; i<X_dim ; i++ )
@@ -123,6 +126,7 @@ void SLAM::predict( int64_t timestamp_ns )
 	norm = sqrt( norm ) ;
 	for( int i=3 ; i<7 ; i++ )
 		X.at<float>(i,0) = X.at<float>(i,0)/norm ;
+	cerr << "**************X\n" << X << endl ; 
 }
 
 void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRight, int64_t timestamp_ns)
@@ -161,17 +165,14 @@ void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRi
 		nR_inv = (-1)*R_inv ;
 		idx = matchList[ _idx ] ;
 		/********EKF********/
-		/*
 		generate_R_dq( X.at<float>( X_dim+3*idx, 0)-X.at<float>(0,0),
 			       X.at<float>( X_dim+3*idx+1, 0)-X.at<float>(1,0),
 			       X.at<float>( X_dim+3*idx+2, 0)-X.at<float>(2,0),
 			       X.at<float>(3,0), X.at<float>(4,0), X.at<float>(5,0), X.at<float>(6,0) ) ;
-		*/
-		//cerr << "R_dq\n" << R_dq << endl ;
 		//H
 		for( int i=0 ; i<3 ; i++ )
 		{
-			memcpy( H.data+(i*H.cols*sizeof(float)), nR_inv.data+(i*nR_inv.cols*sizeof(float)), 
+			memcpy( H.data+( i*H.cols*sizeof(float)), nR_inv.data+(i*nR_inv.cols*sizeof(float)), 
 			        nR_inv.cols*sizeof(float) ) ;
 			memcpy( H.data+( (i*H.cols+3 )*sizeof(float) ), R_dq.data+( i*R_dq.cols*sizeof(float) ),
 			        R_dq.cols*sizeof(float) ) ;
@@ -184,7 +185,7 @@ void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRi
 		//H*sigma*H
 		generate_HsigmaH( H_sigma_H, idx, R_inv, nR_inv, sigma ) ;
 		generate_sigmaH( sigma_H, idx, sigma, R_inv ) ;
-		K = sigma_H*( H_sigma_H+R ).inv() ;
+		K = sigma_H* ( ( H_sigma_H+R ).inv() );
 		cerr << "***************K\n" << K << endl ;
 		//generate HX
 		generate_HX( HX, idx, R_inv ) ;
@@ -228,7 +229,6 @@ void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRi
 
 void SLAM::generate_dqw( Mat &dqw, float _w, float _x, float _y, float _z )
 {
-	dqw = Mat::zeros( 4, 4, CV_32FC1 ) ;
 	dqw.at<float>(0, 0) = _w, dqw.at<float>(0, 1) = -_x, dqw.at<float>(0, 2) = -_y, dqw.at<float>(0, 3) = -_z ;
 	dqw.at<float>(1, 0) = _x, dqw.at<float>(1, 1) = _w, dqw.at<float>(1, 2) = _z, dqw.at<float>(1, 3) = -_y ;
 	dqw.at<float>(2, 0) = _y, dqw.at<float>(2, 1) = -_z, dqw.at<float>(2, 2) = _w, dqw.at<float>(2, 3) = _x ;
@@ -237,7 +237,6 @@ void SLAM::generate_dqw( Mat &dqw, float _w, float _x, float _y, float _z )
 
 void SLAM::generate_dq( Mat &dq, float w, float x, float y, float z ) 
 {
-	dq = Mat::zeros( 4, 4, CV_32FC1 ) ;
 	dq.at<float>(0, 0) = w, dq.at<float>(0, 1) = -x, dq.at<float>(0, 2) = -y, dq.at<float>(0, 3) = -z ;
 	dq.at<float>(1, 0) = x, dq.at<float>(1, 1) = w, dq.at<float>(1, 2) = -z, dq.at<float>(1, 3) = y ;
 	dq.at<float>(2, 0) = y, dq.at<float>(2, 1) = z, dq.at<float>(2, 2) = w, dq.at<float>(2, 3) = -x ;
@@ -246,11 +245,10 @@ void SLAM::generate_dq( Mat &dq, float w, float x, float y, float z )
 
 void SLAM::generate_domega( Mat &domega, float ccc, float sss, float scc, float css, float csc, float scs, float ccs, float ssc ) 
 {
-	domega = Mat::zeros( 4, 3, CV_32FC1 ) ;
 	domega.at<float>(0, 0) = -scc+css, domega.at<float>(0, 1) = -csc+scs, domega.at<float>(0, 2) = -ccs+ssc ;
 	domega.at<float>(1, 0) = ccc+sss, domega.at<float>(1, 1) = -ssc-ccs, domega.at<float>(1, 2) = -scs-csc ;
 	domega.at<float>(2, 0) = -ssc+ccs, domega.at<float>(2, 1) = ccc-sss, domega.at<float>(2, 2) = -css+scc ;
-	domega.at<float>(3, 0) = -scs-css, domega.at<float>(3, 1) = -css-scc, domega.at<float>(3, 2) = ccc+sss ;
+	domega.at<float>(3, 0) = -scs-csc, domega.at<float>(3, 1) = -css-scc, domega.at<float>(3, 2) = ccc+sss ;
 	domega = 0.5*domega ;
 }
 
@@ -323,7 +321,7 @@ void SLAM::generate_sigmaH( cv::Mat &sigma_H, int idx, cv::Mat &sigma, cv::Mat &
 		memcpy( sigma_Rq.data+i*sigma_Rq.cols*sizeof(float), sigma.data+(3+i )*sigma.cols*sizeof(float),
 		      sigma.cols*sizeof(float) ) ;
 	//sigma_H = ( sigma_y-sigma_r ).t() * R_inv.t() + sigma_Rq.t()* R_dq.t() ;
-	//cerr << "sigma H1\n"<< sigma_H.t() << endl ;
+	//cerr << "***************sigma H1\n"<< sigma_H.t() << endl ;
 	sigma_H = sigma*H.t() ;
 	cerr << "********sigma_H^T\n" << sigma_H.t() << endl ;
 	//cerr << "sigma H2\n"<< sigma_H.t() << endl ;
