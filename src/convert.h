@@ -6,7 +6,9 @@ extern "C" {
 #include <libavformat/avformat.h>
 }
 #include <opencv2/opencv.hpp>
+#include <stdarg.h>
 
+void errno_exit(const char *tmpl, ...);
 cv::Mat raw_to_cvmat(uint8_t *data, int width, int height, enum PixelFormat format);
 cv::Mat avframe_to_cvmat(AVFrame *frame);
 int64_t timespec_to_ns(struct timespec *t);

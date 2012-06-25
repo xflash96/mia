@@ -8,6 +8,7 @@ data.offset
 cap
 tags
 src/mia
+src/test
 src/data
 old
 *.swp

@@ -42,11 +42,11 @@ V4LCapture::V4LCapture(const char *dev_name, struct V4LCaptureParam param)
 {
 	n_buffers = 12;
 	video_rec = time_rec = NULL;
-	if(0==strcmp(dev_name, "")){
+	if(!dev_name){
 		this->dev_name = NULL;
-		return;
+	}else{
+		this->dev_name = strdup(dev_name); 
 	}
-	this->dev_name = strdup(dev_name); 
 	this->param = param;
 
 	if(!param.replay_mode){
@@ -108,7 +108,9 @@ V4LCapture::~V4LCapture() {
 	if(time_rec){
 		fclose(time_rec);
 	}
-	free(dev_name);
+	if(dev_name){
+		free(dev_name);
+	}
 };
 
 void V4LCapture::open_device()
@@ -257,7 +259,7 @@ void V4LCapture::start_capturing()
 		buf.index	= i;
 
 		if( -1 == xioctl(fd, VIDIOC_QBUF, &buf) ){
-			errno_exit("VIDIOC_QBUF");
+			errno_exit("VIDIOC_QBUF@CAP");
 		}
 	}
 

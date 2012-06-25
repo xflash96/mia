@@ -5,6 +5,16 @@ extern "C"{
 #include <sys/time.h>
 #include "convert.h"
 
+void errno_exit(const char *tmpl, ...)
+{
+	va_list ap;
+	va_start(ap, tmpl);
+	vfprintf(stderr, tmpl, ap);
+	fprintf(stderr, "\n\terror %d: %s\n", errno, strerror(errno));
+	va_end(ap);
+	exit(EXIT_FAILURE);
+}
+
 cv::Mat avframe_to_cvmat(AVFrame *frame)
 {
 	AVFrame dst;
