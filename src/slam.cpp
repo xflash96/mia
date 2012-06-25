@@ -25,7 +25,7 @@ void SLAM::initial( Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsR
 	y = Mat::zeros( 3, 1, CV_32FC1 ) ;
 	r = Mat::zeros( 3, 1, CV_32FC1 ) ;
 	q = Mat::zeros( 4, 1, CV_32FC1 ) ;
-	epsilon = 1e-5 ;
+	epsilon = 1e-3 ;
 	R = epsilon*( Mat::eye( 3, 3, CV_32FC1 ) ) ;
 
 	R_inv = Mat::zeros( 3, 3, CV_32FC1 ) ;
@@ -107,8 +107,11 @@ void SLAM::predict( int64_t timestamp_ns )
 	X_tmp = A*X_tmp ;
 
 	/********EKF********/
-	q.at<float>(0,0) = _w, q.at<float>(1,0) = _x, q.at<float>(2,0) = _y, q.at<float>(3,0) = _z ;
-	tmp = dq*q ;
+	//q.at<float>(0,0) = _w, q.at<float>(1,0) = _x, q.at<float>(2,0) = _y, q.at<float>(3,0) = _z ;
+	//tmp = dq*q ;
+	q.at<float>(0,0) = X.at<float>( 3, 0 ), q.at<float>(1,0) = X.at<float>( 4, 0 ) ;
+	q.at<float>(2,0) = X.at<float>( 5, 0 ), q.at<float>(3,0) = X.at<float>( 6, 0 ) ;
+	tmp = dqw*q ;
 	X_tmp.at<float>(3,0) = tmp.at<float>(0,0), X_tmp.at<float>(4,0) = tmp.at<float>(1,0);
 	X_tmp.at<float>(5,0) = tmp.at<float>(2,0), X_tmp.at<float>(6,0) = tmp.at<float>(3,0) ;
 	
@@ -203,8 +206,9 @@ void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRi
 		for( int i=3 ; i<7 ; i++ )
 			X.at<float>(i,0) = X.at<float>(i,0)/norm ;
 
-		for( int i=0 ; i<3 ; i++ )
-			memset( H.data+( (i*H.cols+X_dim+idx*3 ) *sizeof(float) ), 0, R_inv.cols*sizeof(float)  ) ;
+		memset( H.data, 0, H.cols*H.rows*sizeof(float) ) ;
+		//for( int i=0 ; i<3 ; i++ )
+		//	memset( H.data+( (i*H.cols+X_dim+idx*3 ) *sizeof(float) ), 0, R_inv.cols*sizeof(float)  ) ;
 		cerr << "**************X\n" << X << endl ; 
 	}
 	//update map
@@ -226,21 +230,22 @@ void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRi
 	}
 	previous_t = timestamp_ns ;
 }
-
-void SLAM::generate_dqw( Mat &dqw, float _w, float _x, float _y, float _z )
+void SLAM::generate_dq( Mat &dq, float _w, float _x, float _y, float _z )
 {
-	dqw.at<float>(0, 0) = _w, dqw.at<float>(0, 1) = -_x, dqw.at<float>(0, 2) = -_y, dqw.at<float>(0, 3) = -_z ;
-	dqw.at<float>(1, 0) = _x, dqw.at<float>(1, 1) = _w, dqw.at<float>(1, 2) = _z, dqw.at<float>(1, 3) = -_y ;
-	dqw.at<float>(2, 0) = _y, dqw.at<float>(2, 1) = -_z, dqw.at<float>(2, 2) = _w, dqw.at<float>(2, 3) = _x ;
-	dqw.at<float>(3, 0) = _z, dqw.at<float>(3, 1) = _y, dqw.at<float>(3, 2) = -_x, dqw.at<float>(3, 3) = _w ;
+	//q*qw
+	dq.at<float>(0, 0) = _w, dq.at<float>(0, 1) = -_x, dq.at<float>(0, 2) = -_y, dq.at<float>(0, 3) = -_z ;
+	dq.at<float>(1, 0) = _x, dq.at<float>(1, 1) = _w, dq.at<float>(1, 2) = _z, dq.at<float>(1, 3) = -_y ;
+	dq.at<float>(2, 0) = _y, dq.at<float>(2, 1) = -_z, dq.at<float>(2, 2) = _w, dq.at<float>(2, 3) = _x ;
+	dq.at<float>(3, 0) = _z, dq.at<float>(3, 1) = _y, dq.at<float>(3, 2) = -_x, dq.at<float>(3, 3) = _w ;
 }
 
-void SLAM::generate_dq( Mat &dq, float w, float x, float y, float z ) 
+void SLAM::generate_dqw( Mat &dqw, float w, float x, float y, float z ) 
 {
-	dq.at<float>(0, 0) = w, dq.at<float>(0, 1) = -x, dq.at<float>(0, 2) = -y, dq.at<float>(0, 3) = -z ;
-	dq.at<float>(1, 0) = x, dq.at<float>(1, 1) = w, dq.at<float>(1, 2) = -z, dq.at<float>(1, 3) = y ;
-	dq.at<float>(2, 0) = y, dq.at<float>(2, 1) = z, dq.at<float>(2, 2) = w, dq.at<float>(2, 3) = -x ;
-	dq.at<float>(3, 0) = z, dq.at<float>(3, 1) = -y, dq.at<float>(3, 2) = x, dq.at<float>(3, 3) = w ;
+	//q*qw
+	dqw.at<float>(0, 0) = w, dqw.at<float>(0, 1) = -x, dqw.at<float>(0, 2) = -y, dqw.at<float>(0, 3) = -z ;
+	dqw.at<float>(1, 0) = x, dqw.at<float>(1, 1) = w, dqw.at<float>(1, 2) = -z, dqw.at<float>(1, 3) = y ;
+	dqw.at<float>(2, 0) = y, dqw.at<float>(2, 1) = z, dqw.at<float>(2, 2) = w, dqw.at<float>(2, 3) = -x ;
+	dqw.at<float>(3, 0) = z, dqw.at<float>(3, 1) = -y, dqw.at<float>(3, 2) = x, dqw.at<float>(3, 3) = w ;
 }
 
 void SLAM::generate_domega( Mat &domega, float ccc, float sss, float scc, float css, float csc, float scs, float ccs, float ssc ) 
@@ -310,6 +315,7 @@ void SLAM::generate_HsigmaH( cv::Mat &H_sigma_H, int idx, cv::Mat &R_inv, cv::Ma
 void SLAM::generate_sigmaH( cv::Mat &sigma_H, int idx, cv::Mat &sigma, cv::Mat &R_inv ) 
 {
 	//CAN OPTIMIZE (COPY IN 1 TIME)
+	/*
 	for( int i=0 ; i<3 ; i++ )
 	{
 		memcpy( sigma_r.data+ i*sigma_r.cols*sizeof(float) , sigma.data+i*sigma.cols*sizeof(float), 
@@ -320,6 +326,7 @@ void SLAM::generate_sigmaH( cv::Mat &sigma_H, int idx, cv::Mat &sigma, cv::Mat &
 	for( int i=0 ; i<4 ; i++ )
 		memcpy( sigma_Rq.data+i*sigma_Rq.cols*sizeof(float), sigma.data+(3+i )*sigma.cols*sizeof(float),
 		      sigma.cols*sizeof(float) ) ;
+	*/
 	//sigma_H = ( sigma_y-sigma_r ).t() * R_inv.t() + sigma_Rq.t()* R_dq.t() ;
 	//cerr << "***************sigma H1\n"<< sigma_H.t() << endl ;
 	sigma_H = sigma*H.t() ;
