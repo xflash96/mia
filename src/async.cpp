@@ -32,7 +32,7 @@ void AsyncQueue::push(gpointer data)
 
 gpointer AsyncQueue::pop()
 {
-	return g_async_queue_pop(queue);
+	return g_async_queue_try_pop(queue);
 }
 
 void AsyncQueue::notify()

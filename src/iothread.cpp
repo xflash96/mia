@@ -79,6 +79,12 @@ StereoThread::on_read(GIOChannel *source, GIOCondition condition, gpointer data)
 	cv::Mat left_descr, right_descr;
 	stereo.get_feat_pts(left_img, right_img, feat_pts, left_descr, right_descr);
 #endif
+	struct GUIPacket *guip = new GUIPacket();
+	guip->pts = feat_pts;
+	GUI_THR->queue->push(guip);
+	/*
+	GUI_THR->queue->notify();
+	*/
 
 	return TRUE;
 }

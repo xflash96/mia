@@ -7,7 +7,7 @@ int ctr = 0;
 
 Stereo::Stereo()
 {
-	int n_feature = 50;
+	int n_feature = 20;
 	left_orb = 	new ORB(n_feature, 1.2f, 1, 31, 0, 2, ORB::FAST_SCORE, 31);
 	right_orb = 	new ORB(n_feature, 1.2f, 1, 31, 0, 2, ORB::FAST_SCORE, 31);
 	matcher = 	new BFMatcher(NORM_HAMMING);
@@ -124,9 +124,9 @@ bool Stereo::get_feat_pts
 	Mat match_img;
 	drawMatches(left_img, left_keys, right_img, right_keys, mmatches, match_img);
 	imshow("match", match_img);
+	cerr << feat_pts << endl;
 //	imshow("left_feat", left_img);
 //	imshow("right_feat", right_img);
-//	waitKey(1);
 	return true;
 }
 

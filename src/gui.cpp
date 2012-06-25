@@ -1,6 +1,14 @@
 #include "gui.h"
 #include "mia.h"
 
+using namespace cv;
+
+static gboolean GUI_redraw (gpointer data)
+{
+	GUI_THR->redraw();
+	return TRUE;
+}
+
 static gboolean GUI_expose (GtkWidget *da, GdkEventExpose *event, gpointer data)
 {
 	return GUI_THR->expose(da, event, data);
@@ -10,25 +18,32 @@ static gboolean GUI_configure (GtkWidget *da, GdkEventConfigure *event, gpointer
 	return GUI_THR->configure(da, event, data);
 }
 
-static gboolean GUI_rotate (gpointer data)
+gboolean
+GUI_on_msg_wrapper(GIOChannel *source, GIOCondition condition, gpointer data)
 {
-	return GUI_THR->rotate(data);
+	return GUI_THR->on_msg(source, condition, data);
 }
-
+gboolean
+GUI::on_msg(GIOChannel *source, GIOCondition condition, gpointer data)
+{
+	return TRUE;
+}
 GUI::GUI()
 {
+	queue = new AsyncQueue(GUI_on_msg_wrapper);
 	init_window();
 }
 
 using namespace cv;
 void GUI::init_window()
 {
-	GtkWidget *window, *glcanvas;
 	GdkGLConfig *glconfig;
 
+	GtkWidget *window, *glcanvas;
 	window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
 	gtk_window_set_default_size (GTK_WINDOW(window), 800, 600);
 	glcanvas = gtk_drawing_area_new();
+	this->glcanvas = glcanvas;
 
 	gtk_container_add (GTK_CONTAINER(window), glcanvas);
 	gtk_widget_set_events (glcanvas, GDK_EXPOSURE_MASK);
@@ -56,48 +71,65 @@ void GUI::init_window()
 			G_CALLBACK(GUI_expose), NULL);
 
 	gtk_widget_show_all (window);
-
-	g_timeout_add (1000/60, GUI_rotate, glcanvas);
+	g_timeout_add_full(G_PRIORITY_HIGH, 1000/30, GUI_redraw, NULL, NULL);
 }
 
-float boxv[][3] = {
-	{ -0.5, -0.5, -0.5 },
-	{  0.5, -0.5, -0.5 },
-	{  0.5,  0.5, -0.5 },
-	{ -0.5,  0.5, -0.5 },
-	{ -0.5, -0.5,  0.5 },
-	{  0.5, -0.5,  0.5 },
-	{  0.5,  0.5,  0.5 },
-	{ -0.5,  0.5,  0.5 }
-};
-
-void GUI::draw_coord()
+void drawCoord()
 {
+	void *font = GLUT_BITMAP_HELVETICA_18;
 	glBegin (GL_LINES);
 	glColor3f (1., 0., 0.);
 	glVertex3f (0., 0., 0.);
 	glVertex3f (1., 0., 0.);
 	glEnd ();
+	glRasterPos3d(1., 0., 0.);
+	glutBitmapCharacter(font, 'X');
 
 	glBegin (GL_LINES);
 	glColor3f (0., 1., 0.);
 	glVertex3f (0., 0., 0.);
 	glVertex3f (0., 1., 0.);
 	glEnd ();
+	glRasterPos3d(0., 1., 0.);
+	glutBitmapCharacter(font, 'Y');
 
 	glBegin (GL_LINES);
 	glColor3f (0., 0., 1.);
 	glVertex3f (0., 0., 0.);
 	glVertex3f (0., 0., 1.);
 	glEnd ();
+	glRasterPos3d(0., 0., 1.);
+	glutBitmapCharacter(font, 'Z');
 
-	glTranslatef(0., 0., 1.);
-	glBegin (GL_POLYGON);
-
-	glEnd ();
+	gdk_gl_draw_teapot(TRUE, 0.1);
 }
 
-static float ang = 30.;
+void drawOval(float x, float y, float z, float sx, float sy, float sz)
+{
+	glPushMatrix();
+	glColor4f(0, 1, 1, 0.5);
+	glTranslatef(-x*20, y, z);
+	float _m[] = {
+		sx, 0, 0, 0,
+		0, sy, 0, 0,
+		0, 0, sz, 0,
+		0, 0, 0, 1
+	};
+	glMultMatrixf(_m);
+	gdk_gl_draw_sphere(FALSE, 10, 10, 10);
+	glPopMatrix();
+}
+
+void drawMap(Pts3D &pts, Pts3D &scales)
+{
+	for(int i=0; i<(int)pts.size(); i++){
+		Point3f pt = pts[i];
+		Point3f sc;// = scales[i];
+		sc.x=sc.y=sc.z=1;
+		drawOval(pt.x, pt.y, pt.z, sc.x, sc.y, sc.z);
+	}
+}
+
 gboolean GUI::expose (GtkWidget *da, GdkEventExpose *event, gpointer data)
 {
 	GdkGLContext *glcontext = gtk_widget_get_gl_context (da);
@@ -109,13 +141,14 @@ gboolean GUI::expose (GtkWidget *da, GdkEventExpose *event, gpointer data)
 	glPushMatrix();
 
 
-	glRotatef (ang, 1, 0, 1);
-	// glRotatef (ang, 0, 1, 0);
-	// glRotatef (ang, 0, 0, 1);
+	glShadeModel(GL_SMOOTH);
 
-	glShadeModel(GL_FLAT);
+	glScalef (0.5, 0.5, 0.5);
+	glRotatef(-45, 1, 0, 0);
+	drawCoord();
 
-	draw_coord();
+	glScalef (0.01, 0.01, 0.01);
+	drawMap(map_pts, map_scales);
 
 
 	glPopMatrix ();
@@ -144,26 +177,29 @@ GUI::configure (GtkWidget *da, GdkEventConfigure *event, gpointer user_data)
 
 	glLoadIdentity();
 	glViewport (0, 0, da->allocation.width, da->allocation.height);
-	glOrtho (-10,10,-10,10,-20050,10000);
+//	glOrtho (-10,10,-10,10,-20050,10000);
 	glEnable (GL_BLEND);
 	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-	glScalef (10., 10., 10.);
 	
 	gdk_gl_drawable_gl_end (gldrawable);
 
 	return TRUE;
 }
 
-gboolean
-GUI::rotate (gpointer user_data)
+void
+GUI::redraw()
 {
-	GtkWidget *da = GTK_WIDGET (user_data);
+	struct GUIPacket *p = (struct GUIPacket *) queue->pop();
+	if(!p){
+		return;
+	}
+	map_pts = p->pts;
+	map_scales = p->scales;
+	delete p;
 
-	ang++;
+	GtkWidget *da = GTK_WIDGET (glcanvas);
 
 	gdk_window_invalidate_rect (da->window, &da->allocation, FALSE);
 	gdk_window_process_updates (da->window, FALSE);
-
-	return TRUE;
 }
+
