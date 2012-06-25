@@ -20,13 +20,13 @@ void SLAM::initial( Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsR
 	X_tmp = Mat::zeros( X_dim, 1, CV_32FC1 ) ;
 	sigma = Mat::eye( X_dim+3*MAX_F, X_dim+3*MAX_F, CV_32FC1 ) ;
 	sigma_tmp = Mat::eye( X_dim, X_dim, CV_32FC1 ) ;
+	epsilon = 0 ;
 	Q = Mat::eye( X_dim, X_dim, CV_32FC1 ) ;
 	R = epsilon*( Mat::eye( 3, 3, CV_32FC1 ) ) ;
 	H = Mat::zeros( 3, X_dim+3*MAX_F, CV_32FC1 ) ;
 	y = Mat::zeros( 3, 1, CV_32FC1 ) ;
 	r = Mat::zeros( 3, 1, CV_32FC1 ) ;
 	q = Mat::zeros( 4, 1, CV_32FC1 ) ;
-	epsilon = 1e-2 ;
 
 	R_inv = Mat::zeros( 3, 3, CV_32FC1 ) ;
 	R_dq = Mat::zeros( 3, 4, CV_32FC1 ) ;
@@ -168,10 +168,12 @@ void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRi
 		nR_inv = (-1)*R_inv ;
 		idx = matchList[ _idx ] ;
 		/********EKF********/
+		/*
 		generate_R_dq( X.at<float>( X_dim+3*idx, 0)-X.at<float>(0,0),
 			       X.at<float>( X_dim+3*idx+1, 0)-X.at<float>(1,0),
 			       X.at<float>( X_dim+3*idx+2, 0)-X.at<float>(2,0),
 			       X.at<float>(3,0), X.at<float>(4,0), X.at<float>(5,0), X.at<float>(6,0) ) ;
+		*/
 		//H
 		for( int i=0 ; i<3 ; i++ )
 		{
