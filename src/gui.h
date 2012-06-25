@@ -10,6 +10,8 @@ public:
 	GUI();
 	void init_window();
 
+	void draw_coord();
+
 	gboolean configure 
 		(GtkWidget *da, GdkEventConfigure *event, gpointer user_data);
 	gboolean expose 

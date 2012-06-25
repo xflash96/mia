@@ -15,12 +15,12 @@ static gboolean GUI_rotate (gpointer data)
 	return GUI_THR->rotate(data);
 }
 
-
 GUI::GUI()
 {
 	init_window();
 }
 
+using namespace cv;
 void GUI::init_window()
 {
 	GtkWidget *window, *glcanvas;
@@ -70,7 +70,32 @@ float boxv[][3] = {
 	{  0.5,  0.5,  0.5 },
 	{ -0.5,  0.5,  0.5 }
 };
-#define ALPHA 0.5
+
+void GUI::draw_coord()
+{
+	glBegin (GL_LINES);
+	glColor3f (1., 0., 0.);
+	glVertex3f (0., 0., 0.);
+	glVertex3f (1., 0., 0.);
+	glEnd ();
+
+	glBegin (GL_LINES);
+	glColor3f (0., 1., 0.);
+	glVertex3f (0., 0., 0.);
+	glVertex3f (0., 1., 0.);
+	glEnd ();
+
+	glBegin (GL_LINES);
+	glColor3f (0., 0., 1.);
+	glVertex3f (0., 0., 0.);
+	glVertex3f (0., 0., 1.);
+	glEnd ();
+
+	glTranslatef(0., 0., 1.);
+	glBegin (GL_POLYGON);
+
+	glEnd ();
+}
 
 static float ang = 30.;
 gboolean GUI::expose (GtkWidget *da, GdkEventExpose *event, gpointer data)
@@ -83,109 +108,15 @@ gboolean GUI::expose (GtkWidget *da, GdkEventExpose *event, gpointer data)
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glPushMatrix();
 
+
 	glRotatef (ang, 1, 0, 1);
 	// glRotatef (ang, 0, 1, 0);
 	// glRotatef (ang, 0, 0, 1);
 
 	glShadeModel(GL_FLAT);
 
-#if 1
-	glBegin (GL_QUADS);
-	glColor4f(0.0, 0.0, 1.0, ALPHA);
-	glVertex3fv(boxv[0]);
-	glVertex3fv(boxv[1]);
-	glVertex3fv(boxv[2]);
-	glVertex3fv(boxv[3]);
+	draw_coord();
 
-	glColor4f(1.0, 1.0, 0.0, ALPHA);
-	glVertex3fv(boxv[0]);
-	glVertex3fv(boxv[4]);
-	glVertex3fv(boxv[5]);
-	glVertex3fv(boxv[1]);
-	
-	glColor4f(0.0, 1.0, 1.0, ALPHA);
-	glVertex3fv(boxv[2]);
-	glVertex3fv(boxv[6]);
-	glVertex3fv(boxv[7]);
-	glVertex3fv(boxv[3]);
-	
-	glColor4f(1.0, 0.0, 0.0, ALPHA);
-	glVertex3fv(boxv[4]);
-	glVertex3fv(boxv[5]);
-	glVertex3fv(boxv[6]);
-	glVertex3fv(boxv[7]);
-	
-	glColor4f(1.0, 0.0, 1.0, ALPHA);
-	glVertex3fv(boxv[0]);
-	glVertex3fv(boxv[3]);
-	glVertex3fv(boxv[7]);
-	glVertex3fv(boxv[4]);
-	
-	glColor4f(0.0, 1.0, 0.0, ALPHA);
-	glVertex3fv(boxv[1]);
-	glVertex3fv(boxv[5]);
-	glVertex3fv(boxv[6]);
-	glVertex3fv(boxv[2]);
-
-	glEnd ();
-#endif
-
-	glBegin (GL_LINES);
-	glColor3f (1., 0., 0.);
-	glVertex3f (0., 0., 0.);
-	glVertex3f (1., 0., 0.);
-	glEnd ();
-	
-	glBegin (GL_LINES);
-	glColor3f (0., 1., 0.);
-	glVertex3f (0., 0., 0.);
-	glVertex3f (0., 1., 0.);
-	glEnd ();
-	
-	glBegin (GL_LINES);
-	glColor3f (0., 0., 1.);
-	glVertex3f (0., 0., 0.);
-	glVertex3f (0., 0., 1.);
-	glEnd ();
-
-	glBegin(GL_LINES);
-	glColor3f (1., 1., 1.);
-	glVertex3fv(boxv[0]);
-	glVertex3fv(boxv[1]);
-	
-	glVertex3fv(boxv[1]);
-	glVertex3fv(boxv[2]);
-	
-	glVertex3fv(boxv[2]);
-	glVertex3fv(boxv[3]);
-	
-	glVertex3fv(boxv[3]);
-	glVertex3fv(boxv[0]);
-	
-	glVertex3fv(boxv[4]);
-	glVertex3fv(boxv[5]);
-	
-	glVertex3fv(boxv[5]);
-	glVertex3fv(boxv[6]);
-	
-	glVertex3fv(boxv[6]);
-	glVertex3fv(boxv[7]);
-	
-	glVertex3fv(boxv[7]);
-	glVertex3fv(boxv[4]);
-	
-	glVertex3fv(boxv[0]);
-	glVertex3fv(boxv[4]);
-	
-	glVertex3fv(boxv[1]);
-	glVertex3fv(boxv[5]);
-	
-	glVertex3fv(boxv[2]);
-	glVertex3fv(boxv[6]);
-	
-	glVertex3fv(boxv[3]);
-	glVertex3fv(boxv[7]);
-	glEnd();
 
 	glPopMatrix ();
 

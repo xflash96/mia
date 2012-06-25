@@ -75,6 +75,7 @@ int main(int argc, char **argv)
 	gtk_gl_init (&argc, &argv);
 	g_thread_init(NULL);
 
+#if 0
 	STEREO_THR = new StereoThread(
 			LEFT_CAM_DEV, RIGHT_CAM_DEV,
 			LEFT_REC_PREFIX, RIGHT_REC_PREFIX,
@@ -83,16 +84,19 @@ int main(int argc, char **argv)
 	HD_THR = new HDVideoThread(
 			HD_CAM_DEV, HD_REC_PREFIX,
 			INTRINSICS_PATH, EXTRINSICS_PATH);
+#endif
 
-//	GUI_THR = new GUI();
+	GUI_THR = new GUI();
 
 	signal(SIGINT, sigint_handler);
 	signal(SIGTERM, sigint_handler);
 
+#if 0
 	if(replay_mode)
 		g_timeout_add_full(G_PRIORITY_HIGH, 2, replay_timeout, NULL, NULL);
 	else
 		process_start_time = time_now_ns();
+#endif
 
 	fprintf(stderr, "Finished initializing\n");
 	g_main_loop_run(main_loop);
