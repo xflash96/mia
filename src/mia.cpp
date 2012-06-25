@@ -29,9 +29,15 @@ StereoThread *STEREO_THR;
 HDVideoThread *HD_THR;
 GUI *GUI_THR;
 
-static void end_program(void)
+void end_program(void)
 {
 	//gtk_main_quit();
+	if(STEREO_THR)
+		delete STEREO_THR;
+	if(HD_THR)
+		delete HD_THR;
+	if(GUI_THR)
+		delete GUI_THR;
 	exit(0);
 }
 
@@ -78,7 +84,7 @@ int main(int argc, char **argv)
 			HD_CAM_DEV, HD_REC_PREFIX,
 			INTRINSICS_PATH, EXTRINSICS_PATH);
 
-	GUI_THR = new GUI();
+//	GUI_THR = new GUI();
 
 	signal(SIGINT, sigint_handler);
 	signal(SIGTERM, sigint_handler);

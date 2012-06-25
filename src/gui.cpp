@@ -33,10 +33,8 @@ void GUI::init_window()
 	gtk_container_add (GTK_CONTAINER(window), glcanvas);
 	gtk_widget_set_events (glcanvas, GDK_EXPOSURE_MASK);
 
-	/*
 	g_signal_connect_swapped (window, "destroy", 
 			G_CALLBACK (end_program), NULL);
-			*/
 
 	gtk_widget_show (window);
 
@@ -91,7 +89,7 @@ gboolean GUI::expose (GtkWidget *da, GdkEventExpose *event, gpointer data)
 
 	glShadeModel(GL_FLAT);
 
-#if 0
+#if 1
 	glBegin (GL_QUADS);
 	glColor4f(0.0, 0.0, 1.0, ALPHA);
 	glVertex3fv(boxv[0]);

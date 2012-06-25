@@ -126,6 +126,8 @@ StereoThread::StereoThread(
 
 StereoThread::~StereoThread()
 {
+	delete left_cap;
+	delete right_cap;
 	delete queue;
 }
 
@@ -227,6 +229,8 @@ HDVideoThread::HDVideoThread(
 
 HDVideoThread::~HDVideoThread()
 {
+	delete hd_cap;
+	delete hd_decoder;
 	delete queue;
 }
 

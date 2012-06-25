@@ -6,7 +6,6 @@ extern "C" {
 #include <libavformat/avformat.h>
 }
 #include <opencv2/opencv.hpp>
-#include <glib.h>
 #include <stdarg.h>
 
 void errno_exit(const char *tmpl, ...);

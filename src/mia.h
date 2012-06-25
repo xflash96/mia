@@ -18,6 +18,8 @@ extern StereoThread *STEREO_THR;
 extern HDVideoThread *HD_THR;
 extern GUI *GUI_THR;
 
+void end_program(void);
+
 /*
 class MiaContext
 {
