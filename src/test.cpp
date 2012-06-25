@@ -21,7 +21,7 @@ float norm_rand(float u, float cov)
 void striaght_cnst_speed(Mat &v, Mat &omega)
 {
 	float _v[] = {
-		0.01f, 0.02f, 0.04f
+		0.01f, 0.02f, 0.01f
 	};
 	float _omega[] = {
 		0, 0, 0.0
@@ -31,7 +31,7 @@ void striaght_cnst_speed(Mat &v, Mat &omega)
 	omega = Mat(3, 1, CV_32FC1, _omega).clone();
 }
 
-const int L = 2;
+const int L = 1;
 void square_map(Mat &x, Mat &rvec, Mat &M, Mat &descr)
 {
 	float _x[] = {
@@ -40,9 +40,9 @@ void square_map(Mat &x, Mat &rvec, Mat &M, Mat &descr)
 	x = Mat(3, 1, CV_32FC1, _x).clone();
 	float _M[L*3] = {
 		0, 0, 0,
-		0, 0, 1,
 	} ;
 	/*
+		0, 0, 1,
 		0, 1, 0,
 		1, 0, 0,
 		0, 0.01, 0.01,
@@ -85,7 +85,7 @@ bool run_camera(Mat x, Mat rvec, Mat v, Mat omega, Mat M, Mat descr, float noise
 			n.x = norm_rand(0, noise);
 			n.y = norm_rand(0, noise);
 			n.z = norm_rand(0, noise);
-			Zp[j] += n;
+			//Zp[j] += n;
 		}
 		cerr << "************pos" << endl ;
 		cerr << Zp[0] << endl ;
