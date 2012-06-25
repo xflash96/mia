@@ -21,12 +21,12 @@ void SLAM::initial( Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsR
 	sigma = Mat::eye( X_dim+3*MAX_F, X_dim+3*MAX_F, CV_32FC1 ) ;
 	sigma_tmp = Mat::eye( X_dim, X_dim, CV_32FC1 ) ;
 	Q = Mat::eye( X_dim, X_dim, CV_32FC1 ) ;
+	R = epsilon*( Mat::eye( 3, 3, CV_32FC1 ) ) ;
 	H = Mat::zeros( 3, X_dim+3*MAX_F, CV_32FC1 ) ;
 	y = Mat::zeros( 3, 1, CV_32FC1 ) ;
 	r = Mat::zeros( 3, 1, CV_32FC1 ) ;
 	q = Mat::zeros( 4, 1, CV_32FC1 ) ;
-	epsilon = 1e-3 ;
-	R = epsilon*( Mat::eye( 3, 3, CV_32FC1 ) ) ;
+	epsilon = 1e-2 ;
 
 	R_inv = Mat::zeros( 3, 3, CV_32FC1 ) ;
 	R_dq = Mat::zeros( 3, 4, CV_32FC1 ) ;
@@ -207,8 +207,6 @@ void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRi
 			X.at<float>(i,0) = X.at<float>(i,0)/norm ;
 
 		memset( H.data, 0, H.cols*H.rows*sizeof(float) ) ;
-		//for( int i=0 ; i<3 ; i++ )
-		//	memset( H.data+( (i*H.cols+X_dim+idx*3 ) *sizeof(float) ), 0, R_inv.cols*sizeof(float)  ) ;
 		cerr << "**************X\n" << X << endl ; 
 	}
 	//update map
