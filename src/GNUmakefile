@@ -19,7 +19,7 @@ CFLAGS := -g -Wall -O3 \
 	$(OPENCV_CFLAGS) \
 	$(FFMPEG_CFLAGS) 
 	 #-Wconversion 
-LDFLAGS := -O3 \
+LDFLAGS := -g \
 	$(GLIB_LDFLAGS) \
 	$(GTK2_LDFLAGS) \
 	$(GTKGL_LDFLAGS) \
@@ -30,7 +30,8 @@ LDFLAGS := -O3 \
 CXXFLAGS := $(CFLAGS) -D__STDC_CONSTANT_MACROS
 CXX := g++
 
-PROGRAMS := mia
+all: test
+PROGRAMS := test
 
 mia: mia.o cap.o decoder.o convert.o stereo.o calib.o cam.o gui.o iothread.o async.o
 	$(CXX) $^ -o $@ $(LDFLAGS)

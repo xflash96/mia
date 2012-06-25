@@ -1,6 +1,6 @@
 #ifndef __SLAM_H__
 #define __SLAM_H__
-#define MAX_F 4
+#define MAX_F 2
 #define X_dim 13
 
 #include <opencv2/opencv.hpp>
@@ -33,8 +33,8 @@ public:
 
 	int64_t previous_t ;
 
-	void generate_dqw( cv::Mat &dqw, float _w, float _x, float _y, float _z ) ;
-	void generate_dq( cv::Mat &dq, float w, float x, float y, float z) ;
+	void generate_dq( cv::Mat &dq, float _w, float _x, float _y, float _z ) ;
+	void generate_dqw( cv::Mat &dqw, float w, float x, float y, float z) ;
 	void generate_domega( cv::Mat &domega, float ccc, float sss, float scc, float css, float csc, float scs, float ccs, float ssc ) ;
 	void generateR( cv::Mat &R, float q0, float q1, float q2, float q3 ) ;
 	void generate_R_dq( float a, float b, float c, float q0, float q1, float q2, float q3 ) ;
