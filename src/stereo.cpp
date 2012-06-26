@@ -139,7 +139,6 @@ bool Stereo::get_feat_pts
 		Point2f pt = feat_reproj[i];
 		circle(reproj_canvas, pt, 5, Scalar(255, 0, 0), 3);
 	}
-	cerr << feat_reproj << endl;
 	imshow("reproj", reproj_canvas);
 //	imshow("left_feat", left_img);
 //	imshow("right_feat", right_img);

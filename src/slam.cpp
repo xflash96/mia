@@ -18,9 +18,9 @@ void SLAM::initial( Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsR
 	X = Mat::zeros( X_dim+3*MAX_F, 1, CV_32FC1 ) ;
 	X.at<float>(3,0) = 1 ;
 	X_tmp = Mat::zeros( X_dim, 1, CV_32FC1 ) ;
-	sigma = Mat::eye( X_dim+3*MAX_F, X_dim+3*MAX_F, CV_32FC1 ) ;
+	sigma = Mat::eye( X_dim+3*MAX_F, X_dim+3*MAX_F, CV_32FC1 ) *0.1;
 	sigma_tmp = Mat::eye( X_dim, X_dim, CV_32FC1 ) ;
-	epsilon = 0 ;
+	epsilon = 1 ;
 	Q = Mat::eye( X_dim, X_dim, CV_32FC1 ) ;
 	R = epsilon*( Mat::eye( 3, 3, CV_32FC1 ) ) ;
 	H = Mat::zeros( 3, X_dim+3*MAX_F, CV_32FC1 ) ;
@@ -357,9 +357,9 @@ void SLAM::feature( Pts3D &positions, Pts3D &variance )
 		pos.y = X.at<float>( X_dim+i*3+1, 0 ) *c;
 		pos.z = X.at<float>( X_dim+i*3+2, 0 ) *c;
 		Point3f var ;
-		var.x = sigma.at<float>( X_dim+i*3, X_dim+i*3 ) ;
-		var.y = sigma.at<float>( X_dim+i*3+1, X_dim+i*3+1 ) ;
-		var.z = sigma.at<float>( X_dim+i*3+2, X_dim+i*3+2 ) ;
+		var.x = sigma.at<float>( X_dim+i*3, X_dim+i*3 ) *c;
+		var.y = sigma.at<float>( X_dim+i*3+1, X_dim+i*3+1 ) *c;
+		var.z = sigma.at<float>( X_dim+i*3+2, X_dim+i*3+2 ) *c;
 		positions.push_back( pos ) ;
 		variance.push_back( var ) ;
 	}

@@ -1,6 +1,6 @@
 #ifndef __SLAM_H__
 #define __SLAM_H__
-#define MAX_F 3
+#define MAX_F 4
 #define X_dim 13
 
 #include <opencv2/opencv.hpp>

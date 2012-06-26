@@ -107,7 +107,7 @@ void drawCoord()
 void drawOval(float x, float y, float z, float sx, float sy, float sz)
 {
 	glPushMatrix();
-	glColor4f(0, 1, 1, 0.5);
+	glColor4f(0, 1, 1, 0.3);
 	glTranslatef(x, y, z);
 	float _m[] = {
 		sx, 0, 0, 0,
@@ -117,7 +117,13 @@ void drawOval(float x, float y, float z, float sx, float sy, float sz)
 	};
 	glMultMatrixf(_m);
 	gdk_gl_draw_sphere(TRUE, 5, 10, 10);
+	glColor4f(1, 0, 0, 1);
 	glPopMatrix();
+	glRasterPos3d(x, y, z);
+	char buf[100];
+	void *font = GLUT_BITMAP_HELVETICA_18;
+	sprintf(buf, "%.2f", sx);
+	glutBitmapString(font, (uchar*) buf);
 }
 
 void drawMap(Pts3D &pts, Pts3D &scales)

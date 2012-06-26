@@ -79,7 +79,7 @@ int main(int argc, char **argv)
 	glutInit(&argc, argv);
 	g_thread_init(NULL);
 
-#if 0
+#if 1
 	STEREO_THR = new StereoThread(
 			LEFT_CAM_DEV, RIGHT_CAM_DEV,
 			LEFT_REC_PREFIX, RIGHT_REC_PREFIX,

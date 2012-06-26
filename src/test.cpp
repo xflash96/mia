@@ -26,7 +26,7 @@ void striaght_cnst_speed(Mat &v, Mat &omega)
 		0.01f, 0.02f, 0.01f
 	};
 	float _omega[] = {
-		0, 0, 0.0
+		0, 0.02, 0.01
 	};
 
 	v = Mat(3, 1, CV_32FC1, _v).clone();
@@ -77,7 +77,7 @@ void SLAMTest::run_camera_once()
 			tmp.at<float>(i,1) = x.at<float>(1, 0) ;
 			tmp.at<float>(i,2) = x.at<float>(2, 0) ;
 		}
-		Mat Z = R*(M-tmp);
+		Mat Z = R.t()*(M-tmp);
 		Pts3D Zp;
 		Mat_to_Pts3D(Z, Zp);
 
@@ -96,8 +96,8 @@ void SLAMTest::run_camera_once()
 		}
 		else
 		{
-			slam.predict(iter*dt*1e7 );
-			slam.measure(Zp, descr, descr, iter*dt*1e7 );
+			slam.predict(iter*dt*1e9 );
+			slam.measure(Zp, descr, descr, iter*dt*1e9 );
 		//	cerr << slam.sigma << endl ;
 		//	cerr << slam.X << endl ;
 		}
@@ -112,7 +112,7 @@ gboolean SLAMTest_run_once(gpointer data)
 	SLAM_THR->slam.feature(feat_pts, scales);
 	struct GUIPacket *guip = new GUIPacket();
 	guip->pts = feat_pts;
-	cerr << feat_pts << scales << endl;
+	//cerr << feat_pts << scales << endl;
 	guip->scales = scales;
 	GUI_THR->queue->push(guip);
 
@@ -124,14 +124,14 @@ SLAMTest::SLAMTest()
 	square_map(x, rvec, M, descr);
 	striaght_cnst_speed(v, omega);
 	dt = 1.f;
-	noise = 0;
+	noise = 0.4;
 	iter = 0;
 	srand(0);
 
 	SLAM_THR = this;
 
 	SLAM_THR->run_camera_once();
-	g_timeout_add_full(G_PRIORITY_HIGH, 10, SLAMTest_run_once, NULL, NULL);
+	g_timeout_add_full(G_PRIORITY_HIGH, 5, SLAMTest_run_once, NULL, NULL);
 //	run_camera(x, rvec, v, omega, M, descr, 0.0001);
 	/*
 	SLAM s ;

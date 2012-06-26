@@ -112,14 +112,14 @@ StereoThread::StereoThread(
 	queue = new AsyncQueue(StereoThread_on_msg);
 	V4LCaptureParam p = {
 		width: 320, height: 240,
-		fps: 100,
+		fps: 30,
 		pixelformat: V4L2_PIX_FMT_YUYV,
 		record_prefix: NULL,
 		replay_mode: (int)replay_mode,
 	};
-	p.record_prefix = left_rec_prefix;
+	//p.record_prefix = left_rec_prefix;
 	left_cap  = new V4LCapture(left_cap_dev, p);
-	p.record_prefix = right_rec_prefix;
+	//p.record_prefix = right_rec_prefix;
 	right_cap = new V4LCapture(right_cap_dev, p);
 	this->intrinsics_path = intrinsics_path;
 	this->extrinsics_path = extrinsics_path;
