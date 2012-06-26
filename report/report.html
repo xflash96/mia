@@ -13,7 +13,7 @@ The ultimate goal of our system
 is to do real time Simultaneous Localization And Mapping (SLAM) with this system in an unknown area.
 The achieve this goal, we require another devices to detect the environment. The common ones are
 specific sensors, which can measure the distances between objects precisely.
-To incoporate what we learned in the semester in the class, we adopt a ubiquitous 
+To incoporate what we learned this semester in the class into our final project, we adopt a ubiquitous 
 device -- camera, for detection.
 
 Our system employs two cameras to build a dual-camear system, and then projects
@@ -157,7 +157,11 @@ ever observed. We use the descriptor to do brute force matching and double check
 If it is, we use thefeatures in the measurement stage, otherwise, we extend our map by adding these new features.
 
 == Screenshots
-{{ img/screenshot.png| Screenshot ~||width=40%}}
+{{ img/screenshot.png| Screenshot ~||width=80%}}
+
+The left-upper one is the fature matching from two pictures taken by two cameras. 
+The left-lower one is the re-projection result (project the above feature to the third image).
+The right one is the virtual 3D map is drawn by the SLAM result. 
 
 == Open Source
 The whole source, including the report, is open sourced (by us) and you can do download it on internet.
@@ -167,6 +171,7 @@ The whole source, including the report, is open sourced (by us) and you can do d
 == Reference
 * [1] [[http://nuigroup.com/forums/viewthread/12445/ | PS3Eye hacks]]
 * [2] [[http://www.robots.ox.ac.uk/~lav/Papers/davison_etal_pami2007/davison_etal_pami2007.pdf | MonoSLAM : Real-Time Single Camera SLAM]]
+* [3] [[http://www.cs.unc.edu/~welch/media/pdf/kalman_intro.pdf | An Introduction to the Kalman Filter]]
 
     </script>
     
