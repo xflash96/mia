@@ -66,25 +66,28 @@ StereoThread::on_read(GIOChannel *source, GIOCondition condition, gpointer data)
 		(total_count-matched_count*2),
 		matched_count*1e9/(time_now_ns()-process_start_time));
 
-	//cv::imshow("left", left_img);
-	//cv::imshow("right", right_img);
-	cv::moveWindow("left", 0, 0);
-	cv::moveWindow("right", left_img.cols, 0);
 #if 0
 	if(matched_count%100==0)
 	calib_cameras_poses(CTX->left_img, CTX->right_img, CTX->hd_img,
 			CTX->stereo, CTX->hd);
-#else
+#endif
+#if 1
 	Pts3D feat_pts;
 	cv::Mat left_descr, right_descr;
 	stereo.get_feat_pts(left_img, right_img, feat_pts, left_descr, right_descr);
+#else
+	cv::imshow("left", left_img);
+	cv::imshow("right", right_img);
+	cv::moveWindow("left", 0, 0);
+	cv::moveWindow("right", left_img.cols, 0);
+	if(matched_count%100==0)
+	calib_cameras_poses(left_img, right_img, HD_THR->hd_img, &stereo, &HD_THR->hd_cam);
 #endif
+#if 1
 	struct GUIPacket *guip = new GUIPacket();
 	guip->pts = feat_pts;
 	GUI_THR->queue->push(guip);
-	/*
-	GUI_THR->queue->notify();
-	*/
+#endif
 
 	return TRUE;
 }
@@ -121,13 +124,13 @@ StereoThread::StereoThread(
 	this->intrinsics_path = intrinsics_path;
 	this->extrinsics_path = extrinsics_path;
 
+	load_calib_params();
 	if(!replay_mode){
 		left_cap->start_capturing();
 		right_cap->start_capturing();
 		main_loop_add_fd (left_cap->fd, StereoThread_on_read, left_cap, G_PRIORITY_HIGH);
 		main_loop_add_fd (right_cap->fd, StereoThread_on_read, right_cap, G_PRIORITY_HIGH);
 	}
-	load_calib_params();
 }
 
 StereoThread::~StereoThread()
@@ -226,11 +229,11 @@ HDVideoThread::HDVideoThread(
 	this->intrinsics_path = intrinsics_path;
 	this->extrinsics_path = extrinsics_path;
 
+	load_calib_params();
 	if(!replay_mode){
 		hd_cap->start_capturing();
 		main_loop_add_fd (hd_cap->fd, HDVideoThread_on_read, NULL, G_PRIORITY_HIGH);
 	}
-	load_calib_params();
 }
 
 HDVideoThread::~HDVideoThread()

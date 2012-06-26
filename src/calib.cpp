@@ -189,10 +189,11 @@ double chessboard_neighbor_error(Pts3D &chessboard_3d, Size &chessboard_pattern)
 
 // find all pair of projection mat
 bool calib_cameras_poses(Mat left_img, Mat right_img, Mat hd_img,
-		Stereo stereo, Cam hd_cam)
+		Stereo *stereo, Cam *hd_cam)
 {
 	if(left_img.empty() || right_img.empty() || hd_img.empty())
 		return false;
+	hd_img = hd_img.clone();
 
 	// build the 4D chessboard coordinate
 	Size chessboard_pattern(8,6);
@@ -212,34 +213,36 @@ bool calib_cameras_poses(Mat left_img, Mat right_img, Mat hd_img,
 	Pts3D chessboard_3d;
 	if (!(lfound && rfound && hdfound))
 		return false;
+
 	imshow("left_calib", left_canvas);
 	imshow("right_calib", right_canvas);
 	imshow("hd_calib", hd_canvas);
+#if 0
 	int r = waitKey(0);
 	if ((char)r == 'x')
 		return false;
+#endif
 
 	Pts2D left_udcorners, right_udcorners;
 
-	stereo.left.undistortPoints(left_corners, left_udcorners);
-	stereo.right.undistortPoints(right_corners, right_udcorners);
+	stereo->left.undistortPoints(left_corners, left_udcorners);
+	stereo->right.undistortPoints(right_corners, right_udcorners);
 
-	stereo.triangulatePoints(left_udcorners, right_udcorners, chessboard_3d);
+	stereo->triangulatePoints(left_udcorners, right_udcorners, chessboard_3d);
 //	cerr << chessboard_3d << endl;
 
 	double err = chessboard_neighbor_error(chessboard_3d, chessboard_pattern);
 	fprintf(stderr, "total err = %lf\n", err);
 	
-	bool ok = hd_cam.solvePnP(chessboard_3d, hd_corners);
+	bool ok = hd_cam->solvePnP(chessboard_3d, hd_corners);
 	Pts2D reproj_chessboard;
-	hd_cam.projectPoints(chessboard_3d, reproj_chessboard);
+	hd_cam->projectPoints(chessboard_3d, reproj_chessboard);
 	Mat reproj_canvas(hd_img);
 	for(size_t i=0; i<reproj_chessboard.size(); i++){
 		Point2f pt = reproj_chessboard[i];
 		circle(reproj_canvas, pt, 5, Scalar(255, 0, 0), 3);
 	}
 	imshow("reproj", reproj_canvas);
-	waitKey(0);
 	fprintf(stderr, "ok = %d\n", ok);
 	return ok;
 }

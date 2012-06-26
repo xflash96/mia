@@ -17,6 +17,8 @@ bool Cam::solvePnP(Pts3D &objPoints, Pts2D &imgPoints)
 {
 	bool ok = cv::solvePnP(objPoints, imgPoints,
 			cam_mat, dist_coeff, rvec, tvec, false, CV_EPNP);
+	cerr << "params:" << endl;
+	cerr << cam_mat << dist_coeff << rvec << tvec << endl;
 	return ok;
 }
 

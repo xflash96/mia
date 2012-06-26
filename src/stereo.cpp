@@ -1,4 +1,5 @@
 #include "stereo.h"
+#include "mia.h"
 
 using namespace cv;
 
@@ -14,9 +15,12 @@ Stereo::Stereo()
 }
 Stereo::~Stereo()
 {
-	delete left_orb,
-	delete right_orb;
-	delete matcher;
+	if(left_orb)
+		delete left_orb;
+	if(right_orb)
+		delete right_orb;
+	if(matcher)
+		delete matcher;
 }
 
 void matches_to_Pts2D(vector<DMatch> &matches, vector<KeyPoint> &left_keys, vector<KeyPoint> &right_keys, Pts2D &left_pts, Pts2D &right_pts)
@@ -98,7 +102,7 @@ bool Stereo::get_feat_pts
 	if(left_mpts.size() <= 3)
 		return false;
 
-	correctMatches(F, left_mpts, right_mpts, left_mpts, right_mpts);
+//	correctMatches(F, left_mpts, right_mpts, left_mpts, right_mpts);
 
 	Pts3D pts_3d;
 	triangulatePoints(left_mpts, right_mpts, feat_pts);
@@ -124,7 +128,19 @@ bool Stereo::get_feat_pts
 	Mat match_img;
 	drawMatches(left_img, left_keys, right_img, right_keys, mmatches, match_img);
 	imshow("match", match_img);
-	cerr << feat_pts << endl;
+	//cerr << feat_pts << endl;
+
+	Pts2D feat_reproj;
+	HD_THR->hd_cam.projectPoints(feat_pts, feat_reproj);
+	if(HD_THR->hd_img.empty())
+		return true;
+	Mat reproj_canvas = HD_THR->hd_img.clone();
+	for(size_t i=0; i<feat_reproj.size(); i++){
+		Point2f pt = feat_reproj[i];
+		circle(reproj_canvas, pt, 5, Scalar(255, 0, 0), 3);
+	}
+	cerr << feat_reproj << endl;
+	imshow("reproj", reproj_canvas);
 //	imshow("left_feat", left_img);
 //	imshow("right_feat", right_img);
 	return true;

@@ -108,7 +108,7 @@ void drawOval(float x, float y, float z, float sx, float sy, float sz)
 {
 	glPushMatrix();
 	glColor4f(0, 1, 1, 0.5);
-	glTranslatef(-x*20, y, z);
+	glTranslatef(x, y, z);
 	float _m[] = {
 		sx, 0, 0, 0,
 		0, sy, 0, 0,
@@ -116,7 +116,7 @@ void drawOval(float x, float y, float z, float sx, float sy, float sz)
 		0, 0, 0, 1
 	};
 	glMultMatrixf(_m);
-	gdk_gl_draw_sphere(FALSE, 10, 10, 10);
+	gdk_gl_draw_sphere(TRUE, 5, 10, 10);
 	glPopMatrix();
 }
 
@@ -130,6 +130,7 @@ void drawMap(Pts3D &pts, Pts3D &scales)
 	}
 }
 
+int ang = 0;
 gboolean GUI::expose (GtkWidget *da, GdkEventExpose *event, gpointer data)
 {
 	GdkGLContext *glcontext = gtk_widget_get_gl_context (da);
@@ -143,11 +144,13 @@ gboolean GUI::expose (GtkWidget *da, GdkEventExpose *event, gpointer data)
 
 	glShadeModel(GL_SMOOTH);
 
+	glRotatef(ang++, 1, 0, 1);
 	glScalef (0.5, 0.5, 0.5);
-	glRotatef(-45, 1, 0, 0);
+	glRotatef(-0, 1, 0, 0);
 	drawCoord();
 
 	glScalef (0.01, 0.01, 0.01);
+	gluLookAt(0, 0, 100, 0, 0, 1, 1, 0, 1);
 	drawMap(map_pts, map_scales);
 
 
