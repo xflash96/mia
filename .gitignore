@@ -12,3 +12,10 @@ src/test
 src/data
 old
 *.swp
+slide/*.aux
+slide/*.nav
+slide/*.out
+slide/*.pdf
+slide/*.snm
+slide/*.toc
+slide/*.log

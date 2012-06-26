@@ -1,7 +1,7 @@
 \documentclass{beamer}
 \usepackage{subfigure} 
 \usepackage{amsopn}
-\usepackage{CJK}
+%\usepackage{CJK}
 
 
 \usetheme{Warsaw}
@@ -56,7 +56,53 @@
 			Drawback: No Research work related to it ...
 		}
 	\end{frame}
-	
+
+	\begin{frame}{Hardware Hacks}
+		Stereo systems are often bothered by time gaps between cameras.\\
+		\uncover<2->
+		{
+			We choose PS3Eye and do some hardware hack (connect VSYN and FSIN)
+			\begin{center}
+				\includegraphics[width=0.5\textwidth]{./pics/mia_pcb.jpg} 
+			\end{center}
+			Result: 120fps 320x240 Synchornized Cameras.
+		}
+	\end{frame}
+
+	\begin{frame}{The Third Eye}
+		Bandwidth: 320x240 x 1.5(YUYV420p) x 120 x 2 = 26MBps\\
+		USB2.0 theoretical = 35MBps\\
+		If we want to record video at the same time..\\
+		\uncover<2->
+		{
+			Logitech C920 H264 Hardware camera\\
+			\begin{center}
+				\includegraphics[width=0.5\textwidth]{./pics/h264-logo.png} 
+			\end{center}
+			Result: Highly compressed 1080p
+		}
+	\end{frame}
+
+	\begin{frame}{Calibration}
+		1-1. Stereo Calibration\\
+		1-2. Test Reprojection Error\\
+		2-1. Determin the extrinsics of HD Cam\\
+		2-2. Project the 3D from Stereo to HD Cam
+		\begin{center}
+			\includegraphics[width=0.3\textwidth]{./pics/chessboard.jpg} 
+		\end{center}
+	\end{frame}
+
+	\begin{frame}{From Image to Matches}
+		\begin{center}
+			\includegraphics[width=0.8\textwidth]{./pics/feats.png} 
+		\end{center}
+		
+		\begin{center}
+			\includegraphics[width=0.8\textwidth]{./pics/match.png} 
+		\end{center}
+	\end{frame}
+
 	\begin{frame}{Extended Kalman Filter Algorithm}
 		One of the most common algorithm in SLAM.\\
 		%put prediction and measurement figure
@@ -93,7 +139,7 @@
 			\left( 
 			\begin{array}{c}
 				\mathbf{r} + (\mathbf{v}+\mathbf{V})\Delta t\\
-				\mathbf{q} \times \mathbf{q}(\mathbf{\omega}+\mathbf{\Omega})\Delta t\\
+				\mathbf{q}((\mathbf{\omega}+\mathbf{\Omega})\Delta t) \times \mathbf{q}\\
 				\mathbf{v} + \mathbf{V}\\
 				\mathbf{\omega} 
 			\end{array} 
