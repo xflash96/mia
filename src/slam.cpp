@@ -18,9 +18,9 @@ void SLAM::initial( Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsR
 	X = Mat::zeros( X_dim+3*MAX_F, 1, CV_32FC1 ) ;
 	X.at<float>(3,0) = 1 ;
 	X_tmp = Mat::zeros( X_dim, 1, CV_32FC1 ) ;
-	sigma = Mat::eye( X_dim+3*MAX_F, X_dim+3*MAX_F, CV_32FC1 ) ;
+	sigma = Mat::eye( X_dim+3*MAX_F, X_dim+3*MAX_F, CV_32FC1 ) *0.1;
 	sigma_tmp = Mat::eye( X_dim, X_dim, CV_32FC1 ) ;
-	epsilon = 0 ;
+	epsilon = 1 ;
 	Q = Mat::eye( X_dim, X_dim, CV_32FC1 ) ;
 	R = epsilon*( Mat::eye( 3, 3, CV_32FC1 ) ) ;
 	H = Mat::zeros( 3, X_dim+3*MAX_F, CV_32FC1 ) ;
@@ -99,7 +99,7 @@ void SLAM::predict( int64_t timestamp_ns )
 	for( int i=0 ; i<4 ; i++ )
 		for( int j=0 ; j<3 ; j++ )
 			A.at<float>( i+3, j+10 ) = tmp.at<float>(i, j) ;
-	cerr << "**************A\n" << A << endl ; 
+	//cerr << "**************A\n" << A << endl ; 
 	memcpy( X_tmp.data, X.data, X_dim*sizeof(float) ) ;
 	for( int i=0 ; i<X_dim ; i++ )
 		memcpy( sigma_tmp.data+( sigma_tmp.cols*i*sizeof(float) ), sigma.data+( sigma.cols*i*sizeof(float)), 
@@ -129,7 +129,7 @@ void SLAM::predict( int64_t timestamp_ns )
 	norm = sqrt( norm ) ;
 	for( int i=3 ; i<7 ; i++ )
 		X.at<float>(i,0) = X.at<float>(i,0)/norm ;
-	cerr << "**************X\n" << X << endl ; 
+	//cerr << "**************X\n" << X << endl ; 
 }
 
 void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRight, int64_t timestamp_ns)
@@ -185,13 +185,13 @@ void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRi
 			        R_inv.data+(i*R_inv.cols*sizeof(float)), 
 				R_inv.cols*sizeof(float) ) ;
 		}
-		cerr << "**************H\n" << H << endl ;
-		cerr << "*************sigma\n" << sigma << endl ;
+		//cerr << "**************H\n" << H << endl ;
+		//cerr << "*************sigma\n" << sigma << endl ;
 		//H*sigma*H
 		generate_HsigmaH( H_sigma_H, idx, R_inv, nR_inv, sigma ) ;
 		generate_sigmaH( sigma_H, idx, sigma, R_inv ) ;
 		K = sigma_H* ( ( H_sigma_H+R ).inv() );
-		cerr << "***************K\n" << K << endl ;
+		//cerr << "***************K\n" << K << endl ;
 		//generate HX
 		generate_HX( HX, idx, R_inv ) ;
 		int j = observeList[_idx] ;
@@ -199,8 +199,8 @@ void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRi
 		y.at<float>(1,0) = observedPoints[j].y ;
 		y.at<float>(2,0) = observedPoints[j].z ;
 		X = X + K*( y-HX ) ;
-		cerr << "**************y\n" << y << endl ;
-		cerr << "***********y-HX\n" << y-HX << endl ;
+		//cerr << "**************y\n" << y << endl ;
+		//cerr << "***********y-HX\n" << y-HX << endl ;
 		sigma = sigma-K*( H*sigma ) ;
 
 		float norm = 0 ;
@@ -211,7 +211,7 @@ void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRi
 			X.at<float>(i,0) = X.at<float>(i,0)/norm ;
 
 		memset( H.data, 0, H.cols*H.rows*sizeof(float) ) ;
-		cerr << "**************X\n" << X << endl ; 
+		//cerr << "**************X\n" << X << endl ; 
 	}
 	//update map
 	for( int i=0 ; i<addList.size() ; i++ )
@@ -311,7 +311,7 @@ void SLAM::generate_HsigmaH( cv::Mat &H_sigma_H, int idx, cv::Mat &R_inv, cv::Ma
 
 	//H_sigma_H = H_y*sigma_ry*( H_y.t() ) ;
 	H_sigma_H = H*sigma*H.t() ;
-	cerr << "********H_sigma_H\n" << H_sigma_H << endl ;
+	//cerr << "********H_sigma_H\n" << H_sigma_H << endl ;
 }
 
 void SLAM::generate_sigmaH( cv::Mat &sigma_H, int idx, cv::Mat &sigma, cv::Mat &R_inv ) 
@@ -332,7 +332,7 @@ void SLAM::generate_sigmaH( cv::Mat &sigma_H, int idx, cv::Mat &sigma, cv::Mat &
 	//sigma_H = ( sigma_y-sigma_r ).t() * R_inv.t() + sigma_Rq.t()* R_dq.t() ;
 	//cerr << "***************sigma H1\n"<< sigma_H.t() << endl ;
 	sigma_H = sigma*H.t() ;
-	cerr << "********sigma_H^T\n" << sigma_H.t() << endl ;
+	//cerr << "********sigma_H^T\n" << sigma_H.t() << endl ;
 	//cerr << "sigma H2\n"<< sigma_H.t() << endl ;
 }
 	
@@ -343,22 +343,23 @@ void SLAM::generate_HX( cv::Mat &HX, int idx, cv::Mat &R_inv )
 	memcpy( y.data, X.data+(X_dim+idx*3)*sizeof(float) , sizeof(float)*3 ) ;
 	/********EKF********/
 	HX = R_inv*( y-r ) ;
-	cerr << "************HX\n" << HX << endl ;
+	//cerr << "************HX\n" << HX << endl ;
 	//HX = R_inv*(y-r)+R_dq.t()*q ;
 }
 
 void SLAM::feature( Pts3D &positions, Pts3D &variance )
 {
+	float c = 30;
 	for( int i=0 ; i<y_size ; i++ )
 	{
-		Point3d pos ;
-		pos.x = X.at<float>( X_dim+i*3, 0 ) ;
-		pos.y = X.at<float>( X_dim+i*3+1, 0 ) ;
-		pos.z = X.at<float>( X_dim+i*3+2, 0 ) ;
-		Point3d var ;
-		var.x = sigma.at<float>( X_dim+i*3, X_dim+i*3 ) ;
-		var.y = sigma.at<float>( X_dim+i*3+1, X_dim+i*3+1 ) ;
-		var.z = sigma.at<float>( X_dim+i*3+2, X_dim+i*3+2 ) ;
+		Point3f pos ;
+		pos.x = X.at<float>( X_dim+i*3, 0 ) *c;
+		pos.y = X.at<float>( X_dim+i*3+1, 0 ) *c;
+		pos.z = X.at<float>( X_dim+i*3+2, 0 ) *c;
+		Point3f var ;
+		var.x = sigma.at<float>( X_dim+i*3, X_dim+i*3 ) *c;
+		var.y = sigma.at<float>( X_dim+i*3+1, X_dim+i*3+1 ) *c;
+		var.z = sigma.at<float>( X_dim+i*3+2, X_dim+i*3+2 ) *c;
 		positions.push_back( pos ) ;
 		variance.push_back( var ) ;
 	}

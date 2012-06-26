@@ -28,6 +28,7 @@ const char *EXTRINSICS_PATH;
 StereoThread *STEREO_THR;
 HDVideoThread *HD_THR;
 GUI *GUI_THR;
+SLAMTest *SLAM_THR;
 
 void end_program(void)
 {
@@ -78,6 +79,7 @@ int main(int argc, char **argv)
 	glutInit(&argc, argv);
 	g_thread_init(NULL);
 
+#if 1
 	STEREO_THR = new StereoThread(
 			LEFT_CAM_DEV, RIGHT_CAM_DEV,
 			LEFT_REC_PREFIX, RIGHT_REC_PREFIX,
@@ -89,13 +91,19 @@ int main(int argc, char **argv)
 
 	GUI_THR = new GUI();
 
-	signal(SIGINT, sigint_handler);
-	signal(SIGTERM, sigint_handler);
-
 	if(replay_mode)
 		g_timeout_add_full(G_PRIORITY_HIGH, 2, replay_timeout, NULL, NULL);
 	else
 		process_start_time = time_now_ns();
+#else
+
+	GUI_THR = new GUI();
+
+	SLAM_THR = new SLAMTest();	
+#endif
+
+	signal(SIGINT, sigint_handler);
+	signal(SIGTERM, sigint_handler);
 
 	fprintf(stderr, "Finished initializing\n");
 	g_main_loop_run(main_loop);

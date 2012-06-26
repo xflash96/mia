@@ -6,7 +6,7 @@ GLIB_LDFLAGS := $(shell pkg-config --libs glib-2.0 gthread-2.0)
 GTK2_CFLAGS := $(shell pkg-config --cflags gtk+-2.0)
 GTK2_LDFLAGS := $(shell pkg-config --libs gtk+-2.0)
 GTKGL_CFLAGS := $(shell pkg-config --cflags gtkglext-1.0)
-GTKGL_LDFLAGS := $(shell pkg-config --libs gtkglext-1.0)
+GTKGL_LDFLAGS := $(shell pkg-config --libs gtkglext-1.0) -lGLU -lglut
 OPENCV_CFLAGS := $(shell pkg-config --cflags opencv)
 OPENCV_LDFLAGS := $(shell pkg-config --libs opencv)
 # OpenCV featrue_2d improperly include -lhighgui, which use gtk+2.0
@@ -30,10 +30,10 @@ LDFLAGS := -g \
 CXXFLAGS := $(CFLAGS) -D__STDC_CONSTANT_MACROS
 CXX := g++
 
-all: test
-PROGRAMS := test
+all: mia
+PROGRAMS := mia
 
-mia: mia.o cap.o decoder.o convert.o stereo.o calib.o cam.o gui.o iothread.o async.o
+mia: mia.o cap.o decoder.o convert.o stereo.o calib.o cam.o gui.o iothread.o async.o test.o slam.o
 	$(CXX) $^ -o $@ $(LDFLAGS)
 
 test: test.o cam.o slam.o
