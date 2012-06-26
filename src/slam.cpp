@@ -349,12 +349,13 @@ void SLAM::generate_HX( cv::Mat &HX, int idx, cv::Mat &R_inv )
 
 void SLAM::feature( Pts3D &positions, Pts3D &variance )
 {
+	float c = 30;
 	for( int i=0 ; i<y_size ; i++ )
 	{
 		Point3f pos ;
-		pos.x = X.at<float>( X_dim+i*3, 0 ) ;
-		pos.y = X.at<float>( X_dim+i*3+1, 0 ) ;
-		pos.z = X.at<float>( X_dim+i*3+2, 0 ) ;
+		pos.x = X.at<float>( X_dim+i*3, 0 ) *c;
+		pos.y = X.at<float>( X_dim+i*3+1, 0 ) *c;
+		pos.z = X.at<float>( X_dim+i*3+2, 0 ) *c;
 		Point3f var ;
 		var.x = sigma.at<float>( X_dim+i*3, X_dim+i*3 ) ;
 		var.y = sigma.at<float>( X_dim+i*3+1, X_dim+i*3+1 ) ;

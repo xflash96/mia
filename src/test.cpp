@@ -103,8 +103,8 @@ gboolean SLAMTest_run_once(gpointer data)
 	SLAM_THR->slam.feature(feat_pts, scales);
 	struct GUIPacket *guip = new GUIPacket();
 	guip->pts = feat_pts;
+	cerr << feat_pts << scales << endl;
 	guip->scales = scales;
-	//cerr << feat_pts << scales << endl;
 	GUI_THR->queue->push(guip);
 
 	return TRUE;
