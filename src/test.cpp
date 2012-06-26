@@ -70,8 +70,14 @@ void SLAMTest::run_camera_once()
 		Mat R;
 		Rodrigues(rvec, R);
 		Scalar xp(x.at<float>(0, 0), x.at<float>(1, 0), x.at<float>(2, 0));
-
-		Mat Z = R*(M-xp);
+		Mat tmp = Mat::zeros(L,3, CV_32FC1) ;
+		for( int i=0 ; i<L ; i++ )
+		{
+			tmp.at<float>(i,0) = x.at<float>(0, 0) ;
+			tmp.at<float>(i,1) = x.at<float>(1, 0) ;
+			tmp.at<float>(i,2) = x.at<float>(2, 0) ;
+		}
+		Mat Z = R*(M-tmp);
 		Pts3D Zp;
 		Mat_to_Pts3D(Z, Zp);
 
@@ -92,7 +98,10 @@ void SLAMTest::run_camera_once()
 		{
 			slam.predict(iter*dt*1e7 );
 			slam.measure(Zp, descr, descr, iter*dt*1e7 );
+		//	cerr << slam.sigma << endl ;
+		//	cerr << slam.X << endl ;
 		}
+		iter++ ;
 }
 
 gboolean SLAMTest_run_once(gpointer data)
