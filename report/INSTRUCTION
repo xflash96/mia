@@ -1,0 +1,6 @@
+To make,
+	$ cd program && make
+
+To demo,
+	$ ./program/astich -f 11 test/original/* -o test/stiched/result \
+	  > test/matched/matched.txt

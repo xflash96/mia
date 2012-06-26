@@ -1,0 +1,269 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Mia: Stereo SLAM</title>
+    <link href="css/bootstrap.min.css" rel="stylesheet"/>
+  </head>
+  <body>
+    <script type="text/x-creole-wiki" id="report">
+== Introduction
+In this homework, we implement the tool of stitching in C++ with openCV.
+The hierarchy of our source is
+
+{{{
+src/
+	astich.cpp
+	sift_lib.cpp
+	sift_lib.h
+	sift_demo.cpp
+	Makefile
+}}}
+== Feature Detection
+In this project, we implement Scale Invariant Feature Transform(SIFT) to extract
+features. There are 4 main steps of SIFT: build scale space, detect keypoints, 
+assign major orientation, feature extraction. There are lots of details to handel
+and consider during the implementation. We not only read the course silde, but
+the original paper `Distinctive Image Features from Scale-Invariant Keypoints` 
+from Lowe. We will discuss each of main steps at the first, and some practical 
+issues and the details later.
+=== 4 Main Steps
+   
+ 
+==== Build Scale Space
+To achieve scale invariant, SIFT generates pyramids on different scale 
+level. For each level, it interpolates some layers to make the performance
+more robust. We use the function  to build them all. We can subject two
+consecutive layers to get DoGs for keypoint detection. We do it by GenerateDoG().
+
+{{ img/sift1.jpg | Build Scale Space ~||width=30%}}
+
+==== Detect Keypoint
+After building pyramids on different scale level and getting the DoGs, we
+treat the local maximum across DoGs as the keypoints. To get a more robust
+keypoints, SIFT throws out the low contrast samples and eliminates the
+edges. We do it by DetectFeatures(), check_local_maximal() and is_low_contrast_or_edge().
+
+{{ img/sift2.jpg | Detect Keypoint ~||width=25%}}
+
+==== Assign Orientation
+For each keypoint, we compute the orientation and magnitude of gradient of
+surrounding points. The surrounding window size depends on the value of sigmas.
+To avoid biundary case may affect the result too much, SIFT applies a gaussion 
+filter on the gradient magnitudes. SIFT splits the orientation angels into 
+36 bins, and do weighted voting the determine the major orientation . We do it by
+ComputeOrientation().
+
+{{ img/sift3.jpg | Assign Orientation ~||width=30%}}
+
+==== Feature Extraction
+SIFT split the surrounding 16*16 windws into 16 4*4 small windows. FOr each
+window, it split the angels into 8 bins and do weighted voting on it. Notice 
+that the orientation is the relative orientation to the major orientation here.
+Hence we can get 16*8 = 128 features at the end. We do it by GenerateFeatures().
+
+{{ img/sift4.jpg | Feature Extraction ~||width=30%}}/
+
+=== Some Practical issues and the difficuties we faced
+
+==== Gray scale image
+Such feature extraction algorithms can only handle gray scale cases, for RGB
+images, it tolds us that is a extended research problems. We are not sure
+how this problem is solved. If the features extracted from gray scale is stable,
+does it worth to do that?
+
+==== Build Scale on different size 
+SIFT applies diiferent sigma on the figure, the effect is equivalent to we
+generate diiferent scale images. So each we update the sigma by 
+sigma = sigma*pow( 2, 1/S ). However, in practice, we scale the image by 
+doubling or halving it in each octaves. And the sigma in each octave is
+a fixed sequence, such like 1.4, 2, 2.8, 4 in our implementation. The 
+reason is the effect of gaussian filtering is accumulated.
+
+==== Pyramid
+By above, we need to doubling or scaling down the image across different 
+octaves. To accumulate the effect of gaussian, it can't use the simple 
+resize method. Such simple resize method may be bi-linear or tri-linear 
+by default in many libraries. The words pyramid implies the gaussian 
+filtering.
+
+{{ img/pyramid.gif | Pyramid ~||width=30%}}
+
+==== Pre-smoothing
+Here are 2 times pre-smoothing in many practical guide ot implementation.
+First, before we doubling the original image for the base image in the 
+octaves, pre-smooth it. Second, after doubling, pre-smooth it again.
+The original paper does not mention the first pre-smoothing stage, but 
+the performance is better with 2 stages approaches.
+
+==== Downward parabola fitting for peak detection
+As the throwing out low constrast samples in feature detections, for each 
+candidate peak( local maximum and magnitude > 0.8*max peak ),we use its
+left and right neighbors to fit a downward parabola curve and fin the 
+position of maximum peak in that curve.
+
+== The Feature Matching
+Here is an example of the feature matching based on the feature extracted 
+by our SIFT implementation. The right image is shrinked and rotated from
+the left image. We only show the matched points in the figure. The rate of 
+mathing is around 60%.
+
+{{ img/result.jpg | Result ~||width=60%}}
+
+== Stiching
+We implemented full recognizing panoroma for stiching. Besides, we also
+create a new bundle adjustment algorithm with coordinate descent and
+regularized least square. It demos that global bundle adjustment won't 
+be the bottleneck of stiching algorithms. Here's the detail:
+
+=== Cylinderal Projection
+Before getting features, we use cylinder projection to distort. 
+We apply the projection to source images
+
+* \[\theta^\prime = s\theta = s\arctan(x,f)\]
+* \[h^\prime = sh = s\frac{y}{\sqrt{x*x+f*f}}\]
+
+with inverse wraping.
+
+Not to scale too much, we make the width after projection fixed and it
+leads to the following formula:
+
+* \[f = \frac{\text{width}}{\tan(\tau)}\]
+* \[s = \frac{\text{width}}{\tau}\]
+
+in which \(\tau\) is a factor that controls the distortion.
+
+=== Matching
+FLANN of Muja[2] is used to perform ANN matching in the SIFT space.
+
+=== Recognizing Panoromas
+We implemented Brown[2]. The basic idea is to run RANSAC to identify pairwise connections,
+and use a probablistic model inside the RANSAC to decide if a random consensus is good.
+After this, we could partition the input images to several connected groups.
+
+==== Feature Selection
+First, we use FLANN to choose the first 4 nearest neighbors of each features, 
+group them by image indexes pair. For each image, we will choose 6 neighbor
+images with the most matched features and drop others. For each image pair, RANSAC
+is used to determin inliers of matched features.
+
+==== RANSAC
+
+For each iteration, 3 points is choosed randomly. A homography model
+* \[x^\prime_0 = \( h_{00}\quad h_{01}\quad h_{02}\)^T \(x_0\quad x_1\quad 1\)\]
+* \[x^\prime_1 = \( h_{10}\quad h_{11}\quad h_{12}\)^T \(x_0\quad x_1\quad 1\)\]
+
+
+=== recog - blend of denny, grail, and parrington
+{{ img/recog/result0.jpg | denny ~|50%}}
+{{ img/recog/result1.jpg | grail }}
+{{ img/recog/result2.jpg | parrington }}
+
+=== paramater
+|= | f (\(\tau=\pi/f\)) |
+| denny | 11 |
+| csie | 20 |
+| recog | 11 |
+
+
+== Artifacts - The Gaze of TA
+{{ img/maca/result.jpg | TA }}
+=== paramater
+|= | f (\(\tau=\pi/f\)) |
+| maca | 5.4 |
+
+== Bonus Point
+* Recognizing Paronoma
+* Coordinate Descent on Bundle Adjustment
+
+== Open Source
+The whole source, including the report, is open source (by us) and you can do download it on internet.
+
+* [[https://github.com/xflash96/astich | Astich: Automatic Stiching Lib]]
+* [[https://github.com/xflash96/pyramid_mongo_rest | Web Framework]]
+
+== Reference
+* [1] Distinctive Image Features from Scale-Invariant Keypoints by David G. Lowe
+* [2] [[http://people.cs.ubc.ca/~mariusm/uploads/FLANN/flann_visapp09.pdf | Fast Approximate Nearest Neighbors with Automatic Algorithm Configuration]]
+* [3] [[http://faculty.cse.tamu.edu/jchai/CPSC641/iccv2003.pdf | Recognizing paronoma]] by M. Brown and D. G. Lowe
+
+    </script>
+    
+    <div class="navbar navbar-fixed-top">
+      <div class="navbar-inner">
+        <div class="container">
+          <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </a>
+          <a class="brand" href="#">Mia</a>
+          <div class="nav-collapse">
+            <ul class="nav">
+              <li><a href="#report">Report</a></li>
+            </ul>
+          </div><!--/.nav-collapse -->
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+        <div id="content">
+		<div class="row" id="wiki"></div>
+	</div>
+        <footer>
+        <p>VFX 2012 Spring Final Project</p>
+        </footer>
+    </div> <!-- /container -->
+
+    <!-- Le javascripts -->
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/modernizr/2.5.3/modernizr.min.js"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1/jquery.min.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.3.1/underscore-min.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/backbone.js/0.9.1/backbone-min.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/json2/20110223/json2.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/handlebars.js/1.0.0.beta2/handlebars.min.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/2.0.2/bootstrap.min.js"></script>
+    <script src="js/jquery.form.min.js"></script>
+    <script src="js/creole.js"></script>
+    <script src="js/load-image.js"></script>
+    <script src="js/bootstrap-carousel.js"></script>
+    <script type="text/javascript" src="js/latexit.js"></script>
+    <script type="text/javascript" src="http://cdnjs.cloudflare.com/ajax/libs/prettify/188.0.0/prettify.js"></script>
+    <script type="text/javascript">
+	(function(){
+	    var getMarkup = function(data){
+		var div = $('#wiki')[0];
+       	        var creole = new Parse.Simple.Creole({
+		    forIE: document.all,
+	        });
+		creole.parse(div, data);
+		prettyPrint();
+		LatexIT.render('span');
+	    };
+	    getMarkup($('#report').text());
+	})();
+    </script>
+    <!-- Le debugs
+    <meta http-equiv="cache-control" content="no-cache">
+    -->
+
+    <!-- Le styles -->
+    <style>
+      body {
+        padding-top: 60px; /* 60px to make the container go all the way to the bottom of the topbar */
+      }
+    </style>
+    <link href="css/bootstrap-responsive.css" rel="stylesheet"/>
+    <link href="css/prettify.css" rel="stylesheet"/>
+    <!--
+    <script src="/static/js/bootstrap-transition.js"></script>
+    <script src="/static/js/bootstrap-tab.js"></script>
+    <script src="/static/js/bootstrap-tooltip.js"></script>
+    <script src="/static/js/bootstrap-popover.js"></script>
+    <script src="/static/js/bootstrap-typeahead.js"></script>
+    -->
+    <a href="http://github.com/xflash96/mia"><img style="position: absolute; top: 40px; right: 0; border: 0;" src="https://a248.e.akamai.net/camo.github.com/abad93f42020b733148435e2cd92ce15c542d320/687474703a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f677265656e5f3030373230302e706e67" alt="Fork me on GitHub"></a>
+
+  </body>
+</html>

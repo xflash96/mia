@@ -1,0 +1,5 @@
+open the report.html
+
+=== For editor ===
+Please edit the <script type="text/x-creole-wiki"> part inside the report.html .
+Put image under img dir, and refer that with url {{img/xxx}} in the report.
