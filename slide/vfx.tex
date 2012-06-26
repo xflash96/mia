@@ -162,6 +162,92 @@
 		\[\mathbf{x} = \mathbf{x}+K(z-h(\mathbf{x},\mathbf{y}))\]
 		\[\Sigma = (I-KH)\Sigma\]
 
+	\end{frame}
 
+	\begin{frame}{Extended Kalman Filter}
+		\[
+		\frac{\partial f(\mathbf{x}) }{ \partial \mathbf{x} } = \left(
+		\begin{array}{cccc}
+			I & 0 & \Delta t I & 0 \\
+			0 & \frac{ \partial \mathbf{q}(\mathbf{\omega}+\mathbf{\Omega}\Delta t) \times \mathbf{q} }{ \partial \mathbf{q} }
+			& 0 & \frac{ \partial \mathbf{q}(\mathbf{\omega}+\mathbf{\Omega}\Delta t) \times \mathbf{q} }{ \partial \mathbf{\omega} } \\
+			0 & 0 & I & 0 \\
+			0 & 0 & 0 & I 
+		\end{array}
+		\right)
+		\]
+	\end{frame}
+
+	\begin{frame}{Extended Kalman Filter}
+		\[
+			\frac{ \partial \mathbf{q}(\mathbf{\omega}+\mathbf{\Omega}\Delta t) \times \mathbf{q} }{ \partial \mathbf{q} } = 
+			\left(
+			\begin{array}{cccc}
+				\hat{w} & -\hat{x} & -\hat{y} & -\hat{z} \\
+				\hat{x} & \hat{w} & \hat{z} & -\hat{y} \\
+				\hat{y} & -\hat{z} & \hat{w} & \hat{x} \\
+				\hat{z} & \hat{y} & -\hat{x} & \hat{w} 
+			\end{array}
+			\right)
+		\]
+
+		where
+
+		$\hat{w} = cos(\phi/2)cos(\theta/2)cos(\psi/2) + sin(\phi/2)sin(\theta/2)sin(\psi/2)$
+		$\hat{x} = sin(\phi/2)cos(\theta/2)cos(\psi/2) - cos(\phi/2)sin(\theta/2)sin(\psi/2)$
+		$\hat{y} = cos(\phi/2)sin(\theta/2)cos(\psi/2) + sin(\phi/2)cos(\theta/2)sin(\psi/2)$
+		$\hat{z} = cos(\phi/2)cos(\theta/2)sin(\psi/2) - sin(\phi/2)sin(\theta/2)cos(\psi/2)$
+		
+		$\phi = \mathbf{w}_{\phi} \times \Delta t$ \\
+		$\theta = \mathbf{w}_{\theta} \times \Delta t$ \\
+		$\psi = \mathbf{w}_{\psi} \times \Delta t$ \\
+	\end{frame}
+
+	\begin{frame}{Extended Kalman Filter}
+		\[
+		\frac{ \partial \mathbf{q}(\mathbf{\omega}+\mathbf{\Omega}\Delta t) \times \mathbf{q} }{ \partial \mathbf{\omega} } 
+		= 
+		\]
+		\[
+		\frac{\Delta t}{2}
+		\left(
+		\begin{array}{cccc}
+			\mathbf{q}_{w} & -\mathbf{q}_{x} & -\mathbf{q}_{y} & -\mathbf{q}_{z} \\
+			\mathbf{q}_{x} & \mathbf{q}_{w} & -\mathbf{q}_{z} & \mathbf{q}_{y} \\
+			\mathbf{q}_{y} & \mathbf{q}_{z} & \mathbf{q}_{w} & -\mathbf{q}_{x} \\
+			\mathbf{q}_{z} & -\mathbf{q}_{y} & \mathbf{q}_{x} & \mathbf{q}_{w} 
+		\end{array}
+		\right) 
+		\times
+		\]
+		\[
+		\left(
+		\begin{array}{ccc}
+			 -sin(\phi/2)cos(\theta/2)cos(\psi/2) + cos(\phi/2)sin(\theta/2)sin(\psi/2) 
+			& 
+			 -cos(\phi/2)sin(\theta/2)cos(\psi/2) + sin(\phi/2)cos(\theta/2)sin(\psi/2) 
+			& 
+			 -cos(\phi/2)cos(\theta/2)sin(\psi/2) + sin(\phi/2)cos(\theta/2)cos(\psi/2) 
+			\\
+			cos(\phi/2)cos(\theta/2)cos(\psi/2) + sin(\phi/2)sin(\theta/2)sin(\psi/2) 
+			& 
+			sin(\phi/2)sin(\theta/2)cos(\psi/2) - cos(\phi/2)cos(\theta/2)sin(\psi/2) 
+			& 
+			-sin(\phi/2)cos(\theta/2)sin(\psi/2) - cos(\phi/2)sin(\theta/2)cos(\psi/2) 
+			\\
+			-sin(\phi/2)sin(\theta/2)cos(\psi/2) + cos(\phi/2)cos(\theta/2)sin(\psi/2) 
+			& 
+			cos(\phi/2)cos(\theta/2)cos(\psi/2) - sin(\phi/2)sin(\theta/2)sin(\psi/2) 
+			& 
+			-cos(\phi/2)sin(\theta/2)sin(\psi/2) + sin(\phi/2)cos(\theta/2)cos(\psi/2) 
+			\\
+			-sin(\phi/2)cos(\theta/2)sin(\psi/2) - cos(\phi/2)sin(\theta/2)sin(\psi/2) 
+			& 
+			-cos(\phi/2)cos(\theta/2)sin(\psi/2) - sin(\phi/2)cos(\theta/2)cos(\psi/2) 
+			& 
+			cos(\phi/2)cos(\theta/2)cos(\psi/2) + sin(\phi/2)sin(\theta/2)sin(\psi/2) 
+		\end{array}
+		\right) 
+		\]
 	\end{frame}
 \end{document}
