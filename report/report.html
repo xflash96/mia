@@ -8,7 +8,27 @@
   <body>
     <script type="text/x-creole-wiki" id="report">
 == Introduction
-Mia is a Stereo Vision System that could run at synchronized at a high speed.
+Mia is a triangulation platform. 
+The ultimate goal of our system
+is to do real time Simultaneous Localization And Mapping (SLAM) with this system in an unknown area.
+The achieve this goal, we require another devices to detect the environment. The common ones are
+specific sensors, which can measure the distances between objects precisely.
+To incoporate what we learned in the semester in the class, we adopt a ubiquitous 
+device -- camera, for detection.
+
+Our system employs two cameras to build a dual-camear system, and then projects
+to result to the third camera to double check our the robustness of our result. 
+There are some reasons to employ two cameras. It is difficult to measure the scene depth (distance) 
+from the single picture taken from a single camera. Although there is one state-of-the-art paper
+to study it deeply, it is more difficult and biased. As the two eyes of humans, we can measure the
+distance after the camera calibration.
+
+{{ imgs/dual.jpg | Triangulation ~||width=30%}}
+
+Besides, on a single camera localization system, if the trajectory of the device is too smooth, it will not be able to localize itself. This is similiar to the vibration of motion that happens on human eyes.
+
+More details can be
+found in the follow sections.
 
 == Camera to Points
 In the following chapter we describe how the image is processed, and how the 3D feature is factored.
@@ -39,12 +59,102 @@ Then each pair is sent to do trianglulation. Each point could be seen as a ray f
 
 == Simutaneously Localization and Mapping
 
+{{ imgs/robot.jpg | Robots ~||width=30%}}
+
+Simultaneous localization and mapping (SLAM) is a technique often used in the robotics domain to build up a map within an 
+unknown environment (without any prior knowledge), or to update a map within a known environment (with a prior knowledge 
+from a given map), while at the same time keeping track of theirselves current location.
 
 === Extended Kalman Filter
 
+One common general algorithm for SLAM is Extended Kalman Filter (EKF).
+As the name suggests, the original Kalman Filter assumes the tranformations
+are all linear. For non-linear cases, Extended Kalman Filter approximates
+it by the first order approximation.
+
+{{ imgs/ekf.jpg | EKF Framwork ~||width=30%}}
+
+The framework of EKF consists of two major tasks, includes prediction and measurement.
+In prediction stage, we need to predict the current state of the camera by a prediction
+function \[f(\mathbf{x})\]. Here \[\mathbf{x}\] is the \[13 \times 1\] state vector includes 
+positions 
+\[\mathbf{r}\], the ratation in quaternion representation 
+\[\mathbf{q}\], the velocity
+\[\mathbf{v}\] and the angle velocity in euler angle representation
+\[\mathbf{\omega}\].
+
+Hence, our designed prediction function \[f(\mathbf{x})\] is 
+
+\[ \mathbf{x} = \left( \begin{array}{c} \mathbf{r}\\ \mathbf{q}\\ \mathbf{v}\\ \mathbf{\omega}\\ \end{array} \right),  \]
+\[ f\left( \begin{array}{c} \mathbf{r}\\ \mathbf{q}\\ \mathbf{v}\\ \mathbf{\omega}\\ \Delta t \end{array} \right) \] 
+\[ = \left( \begin{array}{c} \mathbf{r} + (\mathbf{v}+\mathbf{V})\Delta t\\ \mathbf{q}((\mathbf{\omega}+\mathbf{\Omega})\Delta t) \times \mathbf{q}\\ \mathbf{v} + \mathbf{V}\\ \mathbf{\omega} + \mathbf{\Omega} \end{array} \right)\] \\
+
+Here we assume our camera is with a fixed velocity in every time slot \[\Delta t\], note that the velocity can change between 
+different time slots. Hence, \[\mathbf{v}\] and \[\mathbf{\omega}\] is constants with two biases.
+Then the position is a linear transform related to the velocity. The non-linear one here the the rotation in 
+quaternion representation. The rotation transformation is by the product of two quaternions.
+
+The second stage is the measurement stage. After predicting the current states, we estimates the related positions of
+other objects related to the current state by a function \[h(\mathbf{x}, \mathbf{y})\]. In our system, that is, the 
+position in the local frame of the taken pictures. If our prediction and estimation is correct, the estimated position
+should be the same as the observation. Otherwise, there is the difference between them, we then could refine and
+update our states and the map based on the difference.
+
+Then the full algorithm is
+
+\[ A \equiv \frac{ \partial f(\mathbf{x}) }{ \partial \mathbf{x} } \]
+
+\[ H \equiv \frac{ \partial h(\mathbf{x},\mathbf{y}) }{ \partial \mathbf{x} } \]
+
+**Prediction:**
+
+\[\mathbf{x} = f(\mathbf{x})\]
+
+\[\Sigma = A\Sigma A^{T} + Q\]
+
+**Measurement:**
+
+\[K = \Sigma H^{T}(H\Sigma H^{T}+R)^{-1}\]
+
+\[\mathbf{x} = \mathbf{x}+K(z-h(\mathbf{x},\mathbf{y}))\]
+
+\[\Sigma = (I-KH)\Sigma\]
+
 === Derivative Derivation
 
+The derivative here is very complex. Since we **derive the** function \[f\] and \[h\] **by ourselves**, we
+also need to derive the derivative of them.
+
+\[ \frac{\partial f(\mathbf{x}) }{ \partial \mathbf{x} } = \left( \begin{array}{cccc} I & 0 & \Delta t I & 0 \\ 0 & \frac{ \partial \mathbf{q}(\mathbf{\omega}+\mathbf{\Omega}\Delta t) \times \mathbf{q} }{ \partial \mathbf{q} }& 0 & \frac{ \partial \mathbf{q}(\mathbf{\omega}+\mathbf{\Omega}\Delta t) \times \mathbf{q} }{ \partial \mathbf{\omega} } \\ 0 & 0 & I & 0 \\ 0 & 0 & 0 & I  \end{array} \right) \]
+
+
+\[ \frac{ \partial \mathbf{q}(\mathbf{\omega}+\mathbf{\Omega}\Delta t) \times \mathbf{q} }{ \partial \mathbf{q} } = \left( \begin{array}{cccc} \hat{w} & -\hat{x} & -\hat{y} & -\hat{z} \\ \hat{x} & \hat{w} & \hat{z} & -\hat{y} \\ \hat{y} & -\hat{z} & \hat{w} & \hat{x} \\ \hat{z} & \hat{y} & -\hat{x} & \hat{w}  \end{array} \right) \]
+
+where
+
+\[\hat{w} = cos(\phi/2)cos(\theta/2)cos(\psi/2) + sin(\phi/2)sin(\theta/2)sin(\psi/2)\]
+
+\[\hat{x} = sin(\phi/2)cos(\theta/2)cos(\psi/2) - cos(\phi/2)sin(\theta/2)sin(\psi/2)\]
+
+\[\hat{y} = cos(\phi/2)sin(\theta/2)cos(\psi/2) + sin(\phi/2)cos(\theta/2)sin(\psi/2)\]
+
+\[\hat{z} = cos(\phi/2)cos(\theta/2)sin(\psi/2) - sin(\phi/2)sin(\theta/2)cos(\psi/2)\]
+
+\[\phi = \mathbf{w}_{\phi} \times \Delta t\] 
+
+\[\theta = \mathbf{w}_{\theta} \times \Delta t\] 
+
+\[\psi = \mathbf{w}_{\psi} \times \Delta t\] 
+
+
+\[ \frac{ \partial \mathbf{q}(\mathbf{\omega}+\mathbf{\Omega}\Delta t) \times \mathbf{q} }{ \partial \mathbf{\omega} } = \frac{\Delta t}{2} \left( \begin{array}{cccc} \mathbf{q}_{w} & -\mathbf{q}_{x} & -\mathbf{q}_{y} & -\mathbf{q}_{z} \\ \mathbf{q}_{x} & \mathbf{q}_{w} & -\mathbf{q}_{z} & \mathbf{q}_{y} \\ \mathbf{q}_{y} & \mathbf{q}_{z} & \mathbf{q}_{w} & -\mathbf{q}_{x} \\ \mathbf{q}_{z} & -\mathbf{q}_{y} & \mathbf{q}_{x} & \mathbf{q}_{w} \end{array} \right) \times\]
+\[\left( \begin{array}{ccc}  -sin(\phi/2)cos(\theta/2)cos(\psi/2) + cos(\phi/2)sin(\theta/2)sin(\psi/2)  &  -cos(\phi/2)sin(\theta/2)cos(\psi/2) + sin(\phi/2)cos(\theta/2)sin(\psi/2) &  -cos(\phi/2)cos(\theta/2)sin(\psi/2) + sin(\phi/2)cos(\theta/2)cos(\psi/2)  \\ cos(\phi/2)cos(\theta/2)cos(\psi/2) + sin(\phi/2)sin(\theta/2)sin(\psi/2) & sin(\phi/2)sin(\theta/2)cos(\psi/2) - cos(\phi/2)cos(\theta/2)sin(\psi/2) & -sin(\phi/2)cos(\theta/2)sin(\psi/2) - cos(\phi/2)sin(\theta/2)cos(\psi/2) \\ -sin(\phi/2)sin(\theta/2)cos(\psi/2) + cos(\phi/2)cos(\theta/2)sin(\psi/2)  & cos(\phi/2)cos(\theta/2)cos(\psi/2) - sin(\phi/2)sin(\theta/2)sin(\psi/2)  &  -cos(\phi/2)sin(\theta/2)sin(\psi/2) + sin(\phi/2)cos(\theta/2)cos(\psi/2)  \\ -sin(\phi/2)cos(\theta/2)sin(\psi/2) - cos(\phi/2)sin(\theta/2)sin(\psi/2)  &  -cos(\phi/2)cos(\theta/2)sin(\psi/2) - sin(\phi/2)cos(\theta/2)cos(\psi/2)  & cos(\phi/2)cos(\theta/2)cos(\psi/2) + sin(\phi/2)sin(\theta/2)sin(\psi/2) \end{array} \right)  \]
+
 === Matching
+
+After we recieve the feature descriptors and positions from the camera system, we need to check whether the feature is 
+ever observed. We use the descriptor to do brute force matching and double check whether the position is reasonable.
+If it is, we use thefeatures in the measurement stage, otherwise, we extend our map by adding these new features.
 
 == Screenshots
 {{ img/screenshot.png| Screenshot ~||width=40%}}
@@ -56,6 +166,7 @@ The whole source, including the report, is open sourced (by us) and you can do d
 
 == Reference
 * [1] [[http://nuigroup.com/forums/viewthread/12445/ | PS3Eye hacks]]
+* [2] [[http://www.robots.ox.ac.uk/~lav/Papers/davison_etal_pami2007/davison_etal_pami2007.pdf | MonoSLAM : Real-Time Single Camera SLAM]]
 
     </script>
     
