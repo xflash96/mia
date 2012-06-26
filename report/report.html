@@ -8,20 +8,34 @@
   <body>
     <script type="text/x-creole-wiki" id="report">
 == Introduction
-Mia is a triangulation platform
+Mia is a Stereo Vision System that could run at synchronized at a high speed.
 
-== Light to Points
+== Camera to Points
+In the following chapter we describe how the image is processed, and how the 3D feature is factored.
 
 === Hardware Hacking
+The weakness of multi camera system usually comes from the time gaps between devices. To resolve it, and to provide faster and more accurate triangulation, we followed the instruction in [1] to hack the PS3Eye, which is originally used as game augment reality. We connect one FSIN with VSYN, force the A2D chip samples together. We also have corresponding software architecture to prevent loss of packets. 
+
+At the end, we have a synchronized stereo system at 120 fps, 320x240px.
+
+{{ img/mia_buttom.jpg | Mia buttom view~||width=40%}}
+
 === The Third Eye
+We want to render 3D object or map on the run. However, the stereo system, which outputed with YUYV format, already occupied 26MB/s. The upper bound of USB2.0 is 35MB/s. So, if we want a nice canvas, we have to choose a compressed source of video stream.
+
+We use Logitech C920, which has a hardware H.264 compressor. It will work well on a not so violent environment. FFMpeg is utilized to transform the V4L payload to YUV data.
 
 === Calibration
+Calibration is the heart of stereo system. If it was bad, the traingulation could diverse. We first to the stereo calibration by chessboard, and calculation the reprojection error. Then we do this to the HD camera alone, and estimate the pose of it by prior and chessboard.
 
-=== From Image to Feature
+{{ img/chessboard.jpg | Chessboards ~||width=40%}}
 
-=== From Feature to Valid Match
+=== From Image to 3D points
+Stereo input was processed by FAST corner test and ORB feature descriptor. No pyramid is used. It is quick enough to detect double images 100fps, and generate 20 best fetures. Then we maches the left and right descriptors with hamming loss by brute force.
 
-=== Triangulation
+However, the match pair may still be wrong. We conduct a Fundmental Matrix filtering on the undistorted pair of features, which elimates all that with \(|p^TFp^\prime|\) > threshold.
+
+Then each pair is sent to do trianglulation. Each point could be seen as a ray from the focus, and we could also find the point with minimum sum of distance to the two rays. The point is treated as the 3D location of the feature.
 
 == Simutaneously Localization and Mapping
 
@@ -33,16 +47,15 @@ Mia is a triangulation platform
 === Matching
 
 == Screenshots
+{{ img/screenshot.png| Screenshot ~||width=40%}}
 
 == Open Source
-The whole source, including the report, is open source (by us) and you can do download it on internet.
+The whole source, including the report, is open sourced (by us) and you can do download it on internet.
 
-* [[https://github.com/xflash96/astich | Astich: Automatic Stiching Lib]]
+* [[https://github.com/xflash96/mia | Mia: Stereo Vision System]]
 
 == Reference
-* [1] Distinctive Image Features from Scale-Invariant Keypoints by David G. Lowe
-* [2] [[http://people.cs.ubc.ca/~mariusm/uploads/FLANN/flann_visapp09.pdf | Fast Approximate Nearest Neighbors with Automatic Algorithm Configuration]]
-* [3] [[http://faculty.cse.tamu.edu/jchai/CPSC641/iccv2003.pdf | Recognizing paronoma]] by M. Brown and D. G. Lowe
+* [1] [[http://nuigroup.com/forums/viewthread/12445/ | PS3Eye hacks]]
 
     </script>
     
