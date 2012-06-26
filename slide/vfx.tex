@@ -27,14 +27,14 @@
 
 	\begin{frame}{ Approaches (Devices) }
 		How to observe environments ? Sensors, Cameras ... etc\\
+		\begin{itemize}
+			\item Sensor: more specific and accurate
+			\item Camera: most intuitive and ubiquitous devices
+		\end{itemize}
+		\begin{center}
+			\includegraphics[width=0.5\textwidth]{./pics/sensor.jpg} 
+		\end{center}
 		\uncover<2->
-		{
-			\begin{itemize}
-				\item Sensor: more specific and accurate
-				\item Camera: most intuitive and ubiquitous devices
-			\end{itemize}
-		}
-		\uncover<3->
 		{
 			
 			A.J. Davison et al. MonoSLAM Real-Time Single Camera SLAM
@@ -46,6 +46,9 @@
 		\uncover<2->
 		{
 			Dual Cameras: Easily to estimate positions
+			\begin{center}
+				\includegraphics[width=0.5\textwidth]{./pics/dual.jpg} 
+			\end{center}
 			%put figures
 		}
 		\uncover<3->
@@ -55,10 +58,13 @@
 	\end{frame}
 	
 	\begin{frame}{Extended Kalman Filter Algorithm}
-		One of the most common algorithm in SLAM.
+		One of the most common algorithm in SLAM.\\
 		%put prediction and measurement figure
 		\uncover<2->
 		{
+			\begin{center}
+				\includegraphics[width=0.5\textwidth]{./pics/ekf.jpg} 
+			\end{center}
 			\begin{itemize}
 				\item Prediction: predict current camera positions \alert{$f(x)$}
 				\item Measurement: estimate the position of object $y$, \alert{$h(x,y)$}, in local frame and update map based on the residual
