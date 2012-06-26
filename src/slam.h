@@ -14,6 +14,7 @@ public:
 	void initial( Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRight, int64_t timestamp_ns ) ;
 	void predict(int64_t timestamp_ns);
 	void measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRight, int64_t timestamp_ns);
+	void feature( Pts3D &positions, Pts3D &variance ) ;
 //private:
 	cv::Mat A, X, X_tmp, r, y, q ;
 	cv::Mat sigma, sigma_tmp ;

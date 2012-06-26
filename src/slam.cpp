@@ -199,6 +199,8 @@ void SLAM::measure(Pts3D &observedPoints, cv::Mat &descrsLeft, cv::Mat &descrsRi
 		y.at<float>(1,0) = observedPoints[j].y ;
 		y.at<float>(2,0) = observedPoints[j].z ;
 		X = X + K*( y-HX ) ;
+		cerr << "**************y\n" << y << endl ;
+		cerr << "***********y-HX\n" << y-HX << endl ;
 		sigma = sigma-K*( H*sigma ) ;
 
 		float norm = 0 ;
@@ -343,4 +345,21 @@ void SLAM::generate_HX( cv::Mat &HX, int idx, cv::Mat &R_inv )
 	HX = R_inv*( y-r ) ;
 	cerr << "************HX\n" << HX << endl ;
 	//HX = R_inv*(y-r)+R_dq.t()*q ;
+}
+
+void SLAM::feature( Pts3D &positions, Pts3D &variance )
+{
+	for( int i=0 ; i<y_size ; i++ )
+	{
+		Point3d pos ;
+		pos.x = X.at<float>( X_dim+i*3, 0 ) ;
+		pos.y = X.at<float>( X_dim+i*3+1, 0 ) ;
+		pos.z = X.at<float>( X_dim+i*3+2, 0 ) ;
+		Point3d var ;
+		var.x = sigma.at<float>( X_dim+i*3, X_dim+i*3 ) ;
+		var.y = sigma.at<float>( X_dim+i*3+1, X_dim+i*3+1 ) ;
+		var.z = sigma.at<float>( X_dim+i*3+2, X_dim+i*3+2 ) ;
+		positions.push_back( pos ) ;
+		variance.push_back( var ) ;
+	}
 }
