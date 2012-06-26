@@ -125,7 +125,10 @@ void drawMap(Pts3D &pts, Pts3D &scales)
 	for(int i=0; i<(int)pts.size(); i++){
 		Point3f pt = pts[i];
 		Point3f sc;// = scales[i];
-		sc.x=sc.y=sc.z=1;
+		if(scales.empty())
+			sc.x=sc.y=sc.z=1;
+		else
+			sc = scales[i];
 		drawOval(pt.x, pt.y, pt.z, sc.x, sc.y, sc.z);
 	}
 }

@@ -77,7 +77,7 @@ void Mat_to_Pts3D(Mat &m, Pts3D &pts)
 {
 	pts.clear();
 	for(int i=0; i<m.cols; i++){
-		Point3d p;
+		Point3f p;
 		p.x = m.at<float>(0, i);
 		p.y = m.at<float>(1, i);
 		p.z = m.at<float>(2, i);

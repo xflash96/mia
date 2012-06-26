@@ -11,12 +11,14 @@
 #include "calib.h"
 #include "iothread.h"
 #include "gui.h"
+#include "test.h"
 
 extern int64_t process_start_time;
 
 extern StereoThread *STEREO_THR;
 extern HDVideoThread *HD_THR;
 extern GUI *GUI_THR;
+extern SLAMTest *SLAM_THR;
 
 void end_program(void);
 

@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include "slam.h"
-#include "cam.h"
+#include <glib.h>
+#include "test.h"
+#include "gui.h"
+#include "mia.h"
 
 using namespace cv;
 using namespace std;
@@ -31,7 +33,7 @@ void striaght_cnst_speed(Mat &v, Mat &omega)
 	omega = Mat(3, 1, CV_32FC1, _omega).clone();
 }
 
-const int L = 1;
+const int L = 3;
 void square_map(Mat &x, Mat &rvec, Mat &M, Mat &descr)
 {
 	float _x[] = {
@@ -40,10 +42,10 @@ void square_map(Mat &x, Mat &rvec, Mat &M, Mat &descr)
 	x = Mat(3, 1, CV_32FC1, _x).clone();
 	float _M[L*3] = {
 		0, 0, 0,
-	} ;
-	/*
 		0, 0, 1,
 		0, 1, 0,
+	} ;
+	/*
 		1, 0, 0,
 		0, 0.01, 0.01,
 		0.01, 0, 0.01,
@@ -61,21 +63,14 @@ void square_map(Mat &x, Mat &rvec, Mat &M, Mat &descr)
 	descr = descr.t();
 }
 
-bool run_camera(Mat x, Mat rvec, Mat v, Mat omega, Mat M, Mat descr, float noise=0.)
+void SLAMTest::run_camera_once()
 {
-	srand(0);
-	float dt = 1.f;
-	SLAM slam ;
-	for(int i=0; i<1000; i++){
-		cerr << "i = " << i << endl;
 		x = x + dt*v;
 		rvec = rvec + dt*omega;
-		cerr << "rvec\n" << rvec << endl ;
 		Mat R;
 		Rodrigues(rvec, R);
 		Scalar xp(x.at<float>(0, 0), x.at<float>(1, 0), x.at<float>(2, 0));
-		cerr << "x " << x << " " << rvec << endl;
-		//cerr << "camara R\n" << R << endl ;
+
 		Mat Z = R*(M-xp);
 		Pts3D Zp;
 		Mat_to_Pts3D(Z, Zp);
@@ -87,55 +82,48 @@ bool run_camera(Mat x, Mat rvec, Mat v, Mat omega, Mat M, Mat descr, float noise
 			n.z = norm_rand(0, noise);
 			//Zp[j] += n;
 		}
-		cerr << "************pos" << endl ;
-		cerr << Zp[0] << endl ;
-		cerr << Zp[1] << endl ;
-		cerr << Zp[2] << endl ;
-		cerr << Zp[3] << endl ;
 
 		//TODO add SLAM here
-		if( i == 0 )
+		if( iter == 0 )
 		{
-			slam.initial( Zp, descr, descr, i*dt ) ;
-			//cerr << "****X\n" ;
-			//cerr << slam.X.t() << endl ;
-			//cerr << "*****sigma\n" ;
-			//cerr << slam.sigma << endl ;
+			slam.initial( Zp, descr, descr, iter*dt ) ;
 		}
 		else
 		{
-			slam.predict(i*dt*1e7 );
-			//cerr << "****predict X\n" ;
-			//cerr << slam.X.t() << endl ;
-			slam.measure(Zp, descr, descr, i*dt*1e7 );
-			//cerr << "****X\n" ;
-			//cerr << slam.X.at<float>(10, 0) << " " << slam.X.at<float>(11, 0) << " "<< slam.X.at<float>(12, 0) << " " << endl ;
-			//cerr << "*****sigma\n" ;
-			//cerr << slam.sigma << endl ;
+			slam.predict(iter*dt*1e7 );
+			slam.measure(Zp, descr, descr, iter*dt*1e7 );
 		}
-		cerr << Zp << endl;
-		//cerr << "*******var" << endl ;
-		//for( int j=13 ; j<13+24 ; j++ )
-		//	cerr << slam.sigma.at<float>( j, j ) << " " ;
-		//cerr << endl ;
-	}
-	for( int i=0 ; i<L ; i++ )
-		cerr << slam.X.at<float>( 13+3*i, 0 ) <<  " " << slam.X.at<float>( 13+3*i+1, 0 ) << " " << slam.X.at<float>( 13+3*i+2, 0 ) << endl;
-
-	//for( int j=13 ; j<13+24 ; j++ )
-	//	cerr << slam.sigma.at<float>( j, j ) << " " ;
-	return true;
 }
 
-int main()
+gboolean SLAMTest_run_once(gpointer data)
 {
-	Mat x, rvec;
-	Mat v, omega;
-	Mat M, descr;
-	cerr << "rvec\n" << rvec << endl ;
+	SLAM_THR->run_camera_once();
+	
+	Pts3D feat_pts, scales;
+	SLAM_THR->slam.feature(feat_pts, scales);
+	struct GUIPacket *guip = new GUIPacket();
+	guip->pts = feat_pts;
+	guip->scales = scales;
+	//cerr << feat_pts << scales << endl;
+	GUI_THR->queue->push(guip);
+
+	return TRUE;
+}
+
+SLAMTest::SLAMTest()
+{
 	square_map(x, rvec, M, descr);
 	striaght_cnst_speed(v, omega);
-	run_camera(x, rvec, v, omega, M, descr, 0.0001);
+	dt = 1.f;
+	noise = 0;
+	iter = 0;
+	srand(0);
+
+	SLAM_THR = this;
+
+	SLAM_THR->run_camera_once();
+	g_timeout_add_full(G_PRIORITY_HIGH, 10, SLAMTest_run_once, NULL, NULL);
+//	run_camera(x, rvec, v, omega, M, descr, 0.0001);
 	/*
 	SLAM s ;
 	Mat r = Mat::zeros(3,3,CV_32FC1) ;
@@ -181,5 +169,4 @@ int main()
 	cerr << tmp << endl ;
 	cerr << "test\n" ;
 	*/
-	return 0;
 }
